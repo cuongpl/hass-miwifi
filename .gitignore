@@ -134,3 +134,10 @@ dmypy.json
 bin
 share
 include
+
+# ?? Personal files for MiWiFi dev environment
+/config/custom_components/miwifi/push_miwifi.sh
+push_miwifi.sh
+/config/custom_components/miwifi/Logs/
+*.log
+/config/custom_components/miwifi/__pycache__/
