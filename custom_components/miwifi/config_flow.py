@@ -4,7 +4,8 @@
 from __future__ import annotations
 
 import contextlib
-import logging
+from .logger import _LOGGER
+
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
@@ -39,7 +40,6 @@ from .enum import EncryptionAlgorithm
 from .helper import async_user_documentation_url, async_verify_access, get_config_value
 from .updater import LuciUpdater, async_get_updater
 
-_LOGGER = logging.getLogger(__name__)
 
 
 class MiWifiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore
@@ -67,7 +67,7 @@ class MiWifiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignor
         :return FlowResult: Result object
         """
 
-        _LOGGER.debug("Starting discovery via ssdp: %s", discovery_info)
+        ##_LOGGER.debug("Starting discovery via ssdp: %s", discovery_info)
 
         return await self._async_discovery_handoff()
 
@@ -78,7 +78,7 @@ class MiWifiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignor
         :return FlowResult: Result object
         """
 
-        _LOGGER.debug("Starting discovery via dhcp: %s", discovery_info)
+        #_LOGGER.debug("Starting discovery via dhcp: %s", discovery_info)
 
         return await self._async_discovery_handoff()
 
@@ -179,7 +179,7 @@ class MiWifiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignor
                 user_input[CONF_TIMEOUT],
             )
 
-            _LOGGER.debug("Verify access code: %s", code)
+            #_LOGGER.debug("Verify access code: %s", code)
 
             if codes.is_success(code):
                 return self.async_create_entry(
@@ -274,7 +274,7 @@ class MiWifiOptionsFlow(config_entries.OptionsFlow):
                 user_input[CONF_TIMEOUT],
             )
 
-            _LOGGER.debug("Verify access code: %s", code)
+            #_LOGGER.debug("Verify access code: %s", code)
 
             if codes.is_success(code):
                 await self.async_update_unique_id(user_input[CONF_IP_ADDRESS])

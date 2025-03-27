@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
+from .logger import _LOGGER
 import random
 import time
 import urllib.parse
@@ -29,7 +29,7 @@ from .const import (
 from .enum import EncryptionAlgorithm
 from .exceptions import LuciConnectionError, LuciError, LuciRequestError
 
-_LOGGER = logging.getLogger(__name__)
+ 
 
 
 # pylint: disable=too-many-public-methods,too-many-arguments
@@ -231,8 +231,11 @@ class LuciClient:
 
         :return dict: dict with api data.
         """
-
-        return await self.get("xqnetwork/mode")
+        try:
+            return await self.get("xqnetwork/mode")
+        except Exception as e:
+            _LOGGER.warning("Primary endpoint failed: %s, trying fallback...", e)
+            return await self.get("xqnetwork/get_netmode")
 
     async def wifi_ap_signal(self) -> dict:
         """xqnetwork/wifiap_signal method.
@@ -321,6 +324,24 @@ class LuciClient:
             data["on"] = state
 
         return await self.get("misystem/led", data)
+
+    async def qos_toggle(self, qosState: int = 0) -> dict:
+        """misystem/qos_switch method.
+
+        :param qosState: int: 0 or 1 to toggle the QOS feature
+        :return dict: dict with api data.
+        """
+
+        return await self.get("misystem/qos_switch", {"on": qosState})
+
+
+    async def qos_info(self) -> dict:
+        """misystem/qos_info method.
+
+        :return dict: dict with api data.
+        """
+
+        return await self.get("misystem/qos_info")
 
     async def device_list(self) -> dict:
         """misystem/devicelist method.
@@ -428,7 +449,7 @@ class LuciClient:
         :param is_only_log: bool: Is only log
         """
 
-        _LOGGER.debug("%s (%s): %s", message, url, str(content))
+        #_LOGGER.debug("%s (%s): %s", message, url, str(content))
 
         if is_only_log:
             return

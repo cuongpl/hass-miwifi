@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import logging
+from .logger import _LOGGER
 from typing import Any, Final
 
 from homeassistant.components.update import (
@@ -75,7 +75,7 @@ MIWIFI_UPDATES: tuple[UpdateEntityDescription, ...] = (
     ),
 )
 
-_LOGGER = logging.getLogger(__name__)
+ 
 
 
 async def async_setup_entry(
@@ -210,7 +210,8 @@ class MiWifiUpdate(MiWifiEntity, UpdateEntity):
         try:
             await self._updater.luci.flash_permission()
         except LuciError as _e:
-            _LOGGER.debug("Clear permission error: %r", _e)
+            _LOGGER.error("Clear permission error: %r", _e)
+            
 
         await asyncio.sleep(FIRMWARE_UPDATE_WAIT)
 
