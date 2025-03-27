@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Final
 
 from homeassistant.components.binary_sensor import (
@@ -27,6 +26,8 @@ from .const import (
     ATTR_STATE,
     ATTR_STATE_NAME,
 )
+
+from .logger import _LOGGER
 from .entity import MiWifiEntity
 from .updater import LuciUpdater, async_get_updater
 
@@ -59,18 +60,16 @@ MIWIFI_BINARY_SENSORS: tuple[BinarySensorEntityDescription, ...] = (
         icon="mdi:security-network",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     BinarySensorEntityDescription(
         key=ATTR_BINARY_SENSOR_DUAL_BAND,
         name=ATTR_BINARY_SENSOR_DUAL_BAND_NAME,
         icon="mdi:wifi-plus",
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
 )
-
-_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(

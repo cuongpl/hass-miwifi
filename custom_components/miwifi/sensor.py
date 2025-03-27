@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import logging
+from .logger import _LOGGER
 from enum import Enum
 from typing import Any, Final
 
@@ -14,7 +14,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import DATA_MEGABYTES, PERCENTAGE, TEMP_CELSIUS
+from homeassistant.const import UnitOfInformation, UnitOfTemperature, PERCENTAGE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -77,14 +77,14 @@ MIWIFI_SENSORS: tuple[SensorEntityDescription, ...] = (
         name=ATTR_SENSOR_UPTIME_NAME,
         icon="mdi:timer-sand",
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     SensorEntityDescription(
         key=ATTR_SENSOR_VPN_UPTIME,
         name=ATTR_SENSOR_VPN_UPTIME_NAME,
         icon="mdi:timer-sand",
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     SensorEntityDescription(
         key=ATTR_SENSOR_MEMORY_USAGE,
@@ -93,26 +93,26 @@ MIWIFI_SENSORS: tuple[SensorEntityDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     SensorEntityDescription(
         key=ATTR_SENSOR_MEMORY_TOTAL,
         name=ATTR_SENSOR_MEMORY_TOTAL_NAME,
         icon="mdi:memory",
-        native_unit_of_measurement=DATA_MEGABYTES,
+        native_unit_of_measurement=UnitOfInformation.MEGABYTES,
         state_class=SensorStateClass.TOTAL,
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     SensorEntityDescription(
         key=ATTR_SENSOR_TEMPERATURE,
         name=ATTR_SENSOR_TEMPERATURE_NAME,
         icon="mdi:temperature-celsius",
-        native_unit_of_measurement=TEMP_CELSIUS,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     SensorEntityDescription(
         key=ATTR_SENSOR_MODE,
@@ -162,7 +162,7 @@ MIWIFI_SENSORS: tuple[SensorEntityDescription, ...] = (
         icon="mdi:counter",
         native_unit_of_measurement=PCS,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     SensorEntityDescription(
         key=ATTR_SENSOR_DEVICES_2_4,
@@ -170,7 +170,7 @@ MIWIFI_SENSORS: tuple[SensorEntityDescription, ...] = (
         icon="mdi:counter",
         native_unit_of_measurement=PCS,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     SensorEntityDescription(
         key=ATTR_SENSOR_DEVICES_5_0,
@@ -178,7 +178,7 @@ MIWIFI_SENSORS: tuple[SensorEntityDescription, ...] = (
         icon="mdi:counter",
         native_unit_of_measurement=PCS,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     SensorEntityDescription(
         key=ATTR_SENSOR_DEVICES_GUEST,
@@ -186,7 +186,7 @@ MIWIFI_SENSORS: tuple[SensorEntityDescription, ...] = (
         icon="mdi:counter",
         native_unit_of_measurement=PCS,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     SensorEntityDescription(
         key=ATTR_SENSOR_DEVICES_5_0_GAME,
@@ -194,11 +194,11 @@ MIWIFI_SENSORS: tuple[SensorEntityDescription, ...] = (
         icon="mdi:counter",
         native_unit_of_measurement=PCS,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
 )
 
-_LOGGER = logging.getLogger(__name__)
+ 
 
 
 async def async_setup_entry(

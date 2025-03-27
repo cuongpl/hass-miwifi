@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import logging
+from .logger import _LOGGER
 from typing import Any
 
 from homeassistant import config_entries
@@ -24,7 +24,7 @@ from .const import (
 from .exceptions import LuciConnectionError, LuciError
 from .luci import LuciClient
 
-_LOGGER = logging.getLogger(__name__)
+ 
 
 
 @callback
@@ -88,7 +88,7 @@ async def async_discover_devices(client: AsyncClient) -> list:
     if "leafs" in response["graph"]:
         devices = await async_prepare_leafs(client, devices, response["graph"]["leafs"])
 
-    _LOGGER.debug("Found devices: %s", devices)
+    #_LOGGER.debug("Found devices: %s", devices)
 
     return devices
 

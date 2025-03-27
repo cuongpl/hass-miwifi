@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import logging
+from .logger import _LOGGER
 import urllib.parse
 from typing import Final
 
@@ -18,7 +18,7 @@ SELF_CHECK_METHODS: Final = (
     ("xqsystem/login", "🟢"),
     ("xqsystem/init_info", "🟢"),
     ("misystem/status", "status"),
-    ("xqnetwork/mode", "mode"),
+    ("xqnetwork/get_netmode", "netmode"),
     ("xqsystem/vpn_status", "vpn_status"),
     ("misystem/topo_graph", "topo_graph"),
     ("xqsystem/check_rom_update", "rom_update"),
@@ -38,7 +38,7 @@ SELF_CHECK_METHODS: Final = (
     ("xqnetwork/set_wifi_without_restart", "⚪"),
 )
 
-_LOGGER = logging.getLogger(__name__)
+ 
 
 
 async def async_self_check(hass: HomeAssistant, client: LuciClient, model: str) -> None:
@@ -57,7 +57,9 @@ async def async_self_check(hass: HomeAssistant, client: LuciClient, model: str) 
 
             continue
 
-        if action := getattr(client, method):
+        if hasattr(client, method):
+            action = getattr(client, method)
+
             try:
                 await action()
                 data[code] = "🟢"

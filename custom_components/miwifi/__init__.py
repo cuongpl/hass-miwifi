@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
@@ -31,22 +30,17 @@ from .const import (
     UPDATE_LISTENER,
     UPDATER,
 )
+
+from .logger import _LOGGER
 from .discovery import async_start_discovery
 from .enum import EncryptionAlgorithm
 from .helper import get_config_value, get_store
 from .services import SERVICES
 from .updater import LuciUpdater
 
-_LOGGER = logging.getLogger(__name__)
-
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up entry configured via user interface.
-
-    :param hass: HomeAssistant: Home Assistant object
-    :param entry: ConfigEntry: Config Entry object
-    :return bool: Is success
-    """
+    """Set up entry configured via user interface."""
 
     async_start_discovery(hass)
 
@@ -71,46 +65,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     hass.data.setdefault(DOMAIN, {})
-
     hass.data[DOMAIN][entry.entry_id] = {
         CONF_IP_ADDRESS: _ip,
         UPDATER: _updater,
     }
-
     hass.data[DOMAIN][entry.entry_id][UPDATE_LISTENER] = entry.add_update_listener(
         async_update_options
     )
 
-    async def async_start(with_sleep: bool = False) -> None:
-        """Async start.
+    # ✅ Hacemos refresh aquí mismo durante el setup (evita warning)
+    await _updater.async_config_entry_first_refresh()
+    if not _updater.last_update_success:
+        if _updater.last_exception is not None:
+            raise PlatformNotReady from _updater.last_exception
+        raise PlatformNotReady
 
-        :param with_sleep: bool
-        """
-
-        await _updater.async_config_entry_first_refresh()
-        if not _updater.last_update_success:
-            if _updater.last_exception is not None:
-                raise PlatformNotReady from _updater.last_exception
-
-            raise PlatformNotReady
-
-        if with_sleep:
-            await asyncio.sleep(DEFAULT_SLEEP)
-
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    if is_new:
-        await async_start()
+    if not is_new:
         await asyncio.sleep(DEFAULT_SLEEP)
-    else:
-        hass.loop.call_later(
-            DEFAULT_CALL_DELAY,
-            lambda: hass.async_create_task(async_start(True)),
-        )
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     async def async_stop(event: Event) -> None:
-        """Async stop"""
-
         await _updater.async_stop()
 
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, async_stop)
@@ -122,6 +97,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
 
     return True
+
 
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:

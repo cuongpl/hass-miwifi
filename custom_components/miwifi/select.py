@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import logging
+from .logger import _LOGGER
 from typing import Final
 
 from homeassistant.components.select import (
@@ -90,21 +90,21 @@ MIWIFI_SELECTS: tuple[SelectEntityDescription, ...] = (
         name=ATTR_SELECT_WIFI_2_4_CHANNEL_NAME,
         icon="mdi:format-list-numbered",
         entity_category=EntityCategory.CONFIG,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     SelectEntityDescription(
         key=ATTR_SELECT_WIFI_5_0_CHANNEL,
         name=ATTR_SELECT_WIFI_5_0_CHANNEL_NAME,
         icon="mdi:format-list-numbered",
         entity_category=EntityCategory.CONFIG,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     SelectEntityDescription(
         key=ATTR_SELECT_WIFI_5_0_GAME_CHANNEL,
         name=ATTR_SELECT_WIFI_5_0_GAME_CHANNEL_NAME,
         icon="mdi:format-list-numbered",
         entity_category=EntityCategory.CONFIG,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     SelectEntityDescription(
         key=ATTR_SELECT_WIFI_2_4_SIGNAL_STRENGTH,
@@ -112,7 +112,7 @@ MIWIFI_SELECTS: tuple[SelectEntityDescription, ...] = (
         icon=ICONS[f"{ATTR_SELECT_WIFI_2_4_SIGNAL_STRENGTH}_max"],
         device_class=DeviceClass.SIGNAL_STRENGTH,
         entity_category=EntityCategory.CONFIG,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     SelectEntityDescription(
         key=ATTR_SELECT_WIFI_5_0_SIGNAL_STRENGTH,
@@ -120,7 +120,7 @@ MIWIFI_SELECTS: tuple[SelectEntityDescription, ...] = (
         icon=ICONS[f"{ATTR_SELECT_WIFI_5_0_SIGNAL_STRENGTH}_max"],
         device_class=DeviceClass.SIGNAL_STRENGTH,
         entity_category=EntityCategory.CONFIG,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
     SelectEntityDescription(
         key=ATTR_SELECT_WIFI_5_0_GAME_SIGNAL_STRENGTH,
@@ -128,11 +128,11 @@ MIWIFI_SELECTS: tuple[SelectEntityDescription, ...] = (
         icon=ICONS[f"{ATTR_SELECT_WIFI_5_0_GAME_SIGNAL_STRENGTH}_max"],
         device_class=DeviceClass.SIGNAL_STRENGTH,
         entity_category=EntityCategory.CONFIG,
-        entity_registry_enabled_default=False,
+        entity_registry_enabled_default=True,
     ),
 )
 
-_LOGGER = logging.getLogger(__name__)
+ 
 
 
 async def async_setup_entry(
@@ -323,7 +323,7 @@ class MiWifiSelect(MiWifiEntity, SelectEntity):
             await self._updater.luci.set_wifi(new_data)
             self._wifi_data = new_data
         except LuciError as _e:
-            _LOGGER.debug("WiFi update error: %r", _e)
+            _LOGGER.error("WiFi update error: %r", _e)
 
     async def async_select_option(self, option: str) -> None:
         """Select option
