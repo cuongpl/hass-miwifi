@@ -253,5 +253,14 @@ class Model(str, Enum):
     R4AV2 = "r4av2"  # 2022
     CB0401 = "cb0401"  # 2022
     RD03 = "rd03" # 2023.12.18
-    RD15 = "rd15"
-    RN06 = "rn06"
+    RD15 = "rd15"  #BE 3600 2,5 
+    RN06 = "rn06" #BE 3600 2,5 (Global)
+    RC06 = "rc06"  # Xiaomi Router 7000
+    RD18 = "rd18"
+    RN01 = "rn01"
+    RC06 = "rc06" #(BE7000)
+    RD08 = "rd08"
+    RD28 = "rd28"
+    RD18 = "rd18"
+    CB0401V2 = "cb0401v2" 
+    
