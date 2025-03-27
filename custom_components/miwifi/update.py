@@ -210,7 +210,7 @@ class MiWifiUpdate(MiWifiEntity, UpdateEntity):
         try:
             await self._updater.luci.flash_permission()
         except LuciError as _e:
-            _LOGGER.error("Clear permission error: %r", _e)
+            _LOGGER.warning("Clear permission error: %r", _e)
             
 
         await asyncio.sleep(FIRMWARE_UPDATE_WAIT)

@@ -323,7 +323,7 @@ class MiWifiSelect(MiWifiEntity, SelectEntity):
             await self._updater.luci.set_wifi(new_data)
             self._wifi_data = new_data
         except LuciError as _e:
-            _LOGGER.error("WiFi update error: %r", _e)
+            _LOGGER.warning("WiFi update error: %r", _e)
 
     async def async_select_option(self, option: str) -> None:
         """Select option

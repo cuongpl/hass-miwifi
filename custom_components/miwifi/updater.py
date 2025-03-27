@@ -1068,7 +1068,7 @@ class LuciUpdater(DataUpdateCoordinator):
                 self.hass, SIGNAL_NEW_DEVICE, self.devices[device[ATTR_TRACKER_MAC]]
             )
 
-            ##_LOGGER.debug("Found new device: %s", self.devices[device[ATTR_TRACKER_MAC]])
+            #_LOGGER.debug("Found new device: %s", self.devices[device[ATTR_TRACKER_MAC]])
             
         elif action == DeviceAction.MOVE:
             #_LOGGER.debug("Move device: %s", device[ATTR_TRACKER_MAC])

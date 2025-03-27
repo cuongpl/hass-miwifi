@@ -67,7 +67,7 @@ class MiWifiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignor
         :return FlowResult: Result object
         """
 
-        ##_LOGGER.debug("Starting discovery via ssdp: %s", discovery_info)
+        #_LOGGER.debug("Starting discovery via ssdp: %s", discovery_info)
 
         return await self._async_discovery_handoff()
 

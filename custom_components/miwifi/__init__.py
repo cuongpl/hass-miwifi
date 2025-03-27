@@ -72,7 +72,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id][UPDATE_LISTENER] = entry.add_update_listener(
         async_update_options
     )
-
+    
     # ✅ Hacemos refresh aquí mismo durante el setup (evita warning)
     await _updater.async_config_entry_first_refresh()
     if not _updater.last_update_success:

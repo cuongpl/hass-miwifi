@@ -277,7 +277,7 @@ class MiWifiSwitch(MiWifiEntity, SwitchEntity):
             await self._updater.luci.set_wifi(new_data)
             self._wifi_data = new_data
         except LuciError as _e:
-            _LOGGER.error("WiFi update error: %r", _e)
+            _LOGGER.warning("WiFi update error: %r", _e)
 
     async def _async_update_guest_wifi(self, data: dict) -> None:
         """Update guest wifi
@@ -291,7 +291,7 @@ class MiWifiSwitch(MiWifiEntity, SwitchEntity):
             await self._updater.luci.set_guest_wifi(new_data)
             self._wifi_data = new_data
         except LuciError as _e:
-            _LOGGER.error("WiFi update error: %r", _e)
+            _LOGGER.warning("WiFi update error: %r", _e)
     async def _async_update_qos(self, state: int = 1) -> None:
         """Update QOS
 
@@ -300,7 +300,7 @@ class MiWifiSwitch(MiWifiEntity, SwitchEntity):
         try:
             await self._updater.luci.qos_toggle(state)
         except LuciError as _e:
-            _LOGGER.error("QOS update error: %r", _e)
+            _LOGGER.warning("QOS update error: %r", _e)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on action
