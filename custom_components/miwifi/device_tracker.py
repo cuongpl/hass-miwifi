@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-from .logger import _LOGGER
+import logging
 import socket
 import time
 from contextlib import closing
 from functools import cached_property
 from typing import Any, Final
 
-from homeassistant.components.device_tracker import ENTITY_ID_FORMAT
-
-SOURCE_TYPE_ROUTER = "router"
-
+from homeassistant.components.device_tracker import ENTITY_ID_FORMAT, SOURCE_TYPE_ROUTER
 from homeassistant.components.device_tracker.config_entry import ScannerEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -77,6 +74,8 @@ ATTR_CHANGES: Final = (
 
 CONFIGURATION_PORTS: Final = [80, 443]
 
+_LOGGER = logging.getLogger(__name__)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -108,37 +107,32 @@ async def async_setup_entry(
         entity_id: str = generate_entity_id(
             ENTITY_ID_FORMAT, str(new_device.get(ATTR_TRACKER_MAC))
         )
-        
-        mac = new_device.get(ATTR_TRACKER_MAC)
-        if not mac:
-            _LOGGER.warning("Device without MAC found: %s", new_device)
-            return
 
         try:
             platform: EntityPlatform = async_get_current_platform()
         except RuntimeError as _e:  # pragma: no cover
-            #_LOGGER.debug("An error occurred while adding the device: %r", _e)
+            _LOGGER.debug("An error occurred while adding the device: %r", _e)
+
             return
 
         if entity_id in platform.entities:  # pragma: no cover
-            #_LOGGER.debug("Device already added: %s", entity_id)
-            return
-        
-        unique_id = f"{DOMAIN}-{config_entry.entry_id}-{mac}"
-        
-        if any(e.unique_id == unique_id for e in platform.entities.values()):
-            #_LOGGER.debug("Device already added by unique_id: %s", unique_id)
+            _LOGGER.debug("Device already added: %s", entity_id)
+
             return
 
-        async_add_entities([
-            MiWifiDeviceTracker(
-                unique_id,
-                entity_id,
-                new_device,
-                updater,
-                get_config_value(config_entry, CONF_STAY_ONLINE, DEFAULT_STAY_ONLINE),
-            )
-        ])
+        async_add_entities(
+            [
+                MiWifiDeviceTracker(
+                    f"{DOMAIN}-{device.get(ATTR_TRACKER_MAC)}",
+                    entity_id,
+                    new_device,
+                    updater,
+                    get_config_value(
+                        config_entry, CONF_STAY_ONLINE, DEFAULT_STAY_ONLINE
+                    ),
+                )
+            ]
+        )
 
     for device in updater.devices.values():
         add_device(device)
@@ -338,13 +332,13 @@ class MiWifiDeviceTracker(ScannerEntity, CoordinatorEntity):
                     (dr.CONNECTION_NETWORK_MAC, self.mac_address),
                     (dr.CONNECTION_NETWORK_MAC, _optional_mac),
                 },
-                identifiers={(DOMAIN, self._attr_unique_id)},
+                identifiers={(DOMAIN, self.mac_address)},
                 name=self._attr_name,
             )
 
         return DeviceInfo(
             connections={(dr.CONNECTION_NETWORK_MAC, self.mac_address)},
-            identifiers={(DOMAIN, self._attr_unique_id)},
+            identifiers={(DOMAIN, self.mac_address)},
             name=self._attr_name,
             configuration_url=self.configuration_url,
             manufacturer=self.manufacturer,
@@ -468,6 +462,6 @@ class MiWifiDeviceTracker(ScannerEntity, CoordinatorEntity):
                 if result == 0:
                     self._configuration_port = port
 
-                    #_LOGGER.debug("Found open port %s: %s", self.ip_address, port)
+                    _LOGGER.debug("Found open port %s: %s", self.ip_address, port)
 
                     break

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .logger import _LOGGER
+import logging
 
 from homeassistant.components.button import (
     ENTITY_ID_FORMAT,
@@ -32,7 +32,7 @@ MIWIFI_BUTTONS: tuple[ButtonEntityDescription, ...] = (
     ),
 )
 
-
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -97,7 +97,7 @@ class MiWifiButton(MiWifiEntity, ButtonEntity):
         try:
             await self._updater.luci.reboot()
         except LuciError as _e:
-            _LOGGER.warning("Reboot error: %r", _e)
+            _LOGGER.debug("Reboot error: %r", _e)
 
     async def async_press(self) -> None:
         """Async press action."""

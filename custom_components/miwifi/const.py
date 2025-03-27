@@ -64,7 +64,7 @@ DEFAULT_MANUFACTURER: Final = "Xiaomi"
 
 """Luci API client const"""
 CLIENT_ADDRESS: Final = "miwifi.com"
-CLIENT_ADDRESS_IP: Final = "192.168.1.1"
+CLIENT_ADDRESS_IP: Final = "192.168.31.1"
 CLIENT_URL: Final = "http://{ip}/cgi-bin/luci"
 CLIENT_USERNAME: Final = "admin"
 CLIENT_LOGIN_TYPE: Final = 2
@@ -195,9 +195,6 @@ ATTR_SWITCH_WIFI_5_0_GAME_NAME: Final = f"{ATTR_WIFI_NAME} 5G game"
 ATTR_SWITCH_WIFI_GUEST: Final = "wifi_guest"
 ATTR_SWITCH_WIFI_GUEST_NAME: Final = f"{ATTR_WIFI_NAME} guest"
 
-ATTR_SWITCH_QOS: Final = "qos"
-ATTR_SWITCH_QOS_NAME: Final = "QOS"
-
 """Select attributes"""
 ATTR_SELECT_WIFI_2_4_CHANNEL: Final = "wifi_2_4_channel"
 ATTR_SELECT_WIFI_2_4_CHANNELS: Final = "wifi_2_4_channels"
@@ -259,17 +256,6 @@ ATTR_UPDATE_RELEASE_URL: Final = "release_url"
 ATTR_UPDATE_DOWNLOAD_URL: Final = "download_url"
 ATTR_UPDATE_FILE_SIZE: Final = "file_size"
 ATTR_UPDATE_FILE_HASH: Final = "file_hash"
-
-ATTR_CHANGES = (
-    ATTR_TRACKER_IP,
-    ATTR_TRACKER_ONLINE,
-    ATTR_TRACKER_CONNECTION,
-    ATTR_TRACKER_ROUTER_MAC_ADDRESS,
-    ATTR_TRACKER_SIGNAL,
-    ATTR_TRACKER_DOWN_SPEED,
-    ATTR_TRACKER_UP_SPEED,
-    ATTR_TRACKER_OPTIONAL_MAC,
-)
 
 """Manufacturers"""
 # pylint: disable=too-many-lines,line-too-long

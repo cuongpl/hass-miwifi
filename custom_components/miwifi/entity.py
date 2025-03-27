@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .logger import _LOGGER
+import logging
 
 from homeassistant.helpers.entity import EntityDescription
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -11,7 +11,7 @@ from .const import ATTR_DEVICE_MAC_ADDRESS, ATTR_STATE, ATTRIBUTION
 from .helper import generate_entity_id
 from .updater import LuciUpdater
 
- 
+_LOGGER = logging.getLogger(__name__)
 
 
 class MiWifiEntity(CoordinatorEntity):

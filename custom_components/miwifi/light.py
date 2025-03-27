@@ -4,12 +4,11 @@
 from __future__ import annotations
 
 import contextlib
-from .logger import _LOGGER
+import logging
 from typing import Any, Final
 
 from homeassistant.components.light import (
     ENTITY_ID_FORMAT,
-    ColorMode,
     LightEntity,
     LightEntityDescription,
 )
@@ -41,7 +40,7 @@ MIWIFI_LIGHTS: tuple[LightEntityDescription, ...] = (
     ),
 )
 
- 
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -89,8 +88,6 @@ class MiWifiLight(MiWifiEntity, LightEntity):
         MiWifiEntity.__init__(self, unique_id, description, updater, ENTITY_ID_FORMAT)
 
         self._attr_is_on = updater.data.get(description.key, False)
-        self._attr_color_mode = ColorMode.ONOFF
-        self._attr_supported_color_modes = {ColorMode.ONOFF}
         self._change_icon(self._attr_is_on)
 
     def _handle_coordinator_update(self) -> None:

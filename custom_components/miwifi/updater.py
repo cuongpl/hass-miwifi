@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from .logger import _LOGGER
+import logging
 from datetime import datetime, timedelta
 from functools import cached_property
 from typing import Any, Final
@@ -151,11 +151,10 @@ UNSUPPORTED: Final = {
         Model.R4C,
         Model.R4CM,
         Model.D01,
-        Model.RN06,
     ]
 }
 
- 
+_LOGGER = logging.getLogger(__name__)
 
 
 # pylint: disable=too-many-branches,too-many-lines,too-many-arguments
@@ -337,10 +336,6 @@ class LuciUpdater(DataUpdateCoordinator):
         if not self._is_only_login:
             self._clean_devices()
 
-        if "new_status" not in self.data:
-            #_LOGGER.warning("🔁 Forzando carga de new_status manualmente...")
-            await self._async_prepare_new_status(self.data)
-
         return self.data
 
     @property
@@ -441,19 +436,8 @@ class LuciUpdater(DataUpdateCoordinator):
         :param data: dict
         """
 
-        '''if not self._is_first_update:
-            return'''
-        if (
-            not self._is_first_update
-            and ATTR_DEVICE_NAME in data
-            and ATTR_DEVICE_MODEL in data
-            and ATTR_DEVICE_MANUFACTURER in data
-        ):
-            #_LOGGER.debug("⏳ Ejecutando init_info porque falta información básica del router")
+        if not self._is_first_update:
             return
-
-
-
 
         response: dict = await self.luci.init_info()
 
@@ -614,10 +598,7 @@ class LuciUpdater(DataUpdateCoordinator):
 
         if "mode" in response:
             with contextlib.suppress(ValueError):
-                try:
-                    data[ATTR_SENSOR_MODE] = Mode(int(response["mode"]))
-                except:
-                    data[ATTR_SENSOR_MODE] = Mode(0)
+                data[ATTR_SENSOR_MODE] = Mode(int(response["mode"]))
 
                 return
 
@@ -1014,7 +995,7 @@ class LuciUpdater(DataUpdateCoordinator):
                 self.hass, SIGNAL_NEW_DEVICE, device | {ATTR_TRACKER_IS_RESTORED: True}
             )
 
-            #_LOGGER.debug("Restore device: %s, %s", mac, device)
+            _LOGGER.debug("Restore device: %s, %s", mac, device)
 
         self._clean_devices()
 
@@ -1068,11 +1049,11 @@ class LuciUpdater(DataUpdateCoordinator):
                 self.hass, SIGNAL_NEW_DEVICE, self.devices[device[ATTR_TRACKER_MAC]]
             )
 
-            #_LOGGER.debug("Found new device: %s", self.devices[device[ATTR_TRACKER_MAC]])
-            
+            _LOGGER.debug(
+                "Found new device: %s", self.devices[device[ATTR_TRACKER_MAC]]
+            )
         elif action == DeviceAction.MOVE:
-            #_LOGGER.debug("Move device: %s", device[ATTR_TRACKER_MAC])
-            pass
+            _LOGGER.debug("Move device: %s", device[ATTR_TRACKER_MAC])
 
         if device[ATTR_TRACKER_MAC] in self._moved_devices or (
             self.is_repeater and self.is_force_load
@@ -1200,20 +1181,16 @@ class LuciUpdater(DataUpdateCoordinator):
         """
 
         if not self.is_force_load:
-            #_LOGGER.warning("⚠️ [new_status] is_force_load is False. Skipping new_status.")
             return
 
         response: dict = await self.luci.new_status()
-        #_LOGGER.warning("📶 [new_status] Raw response: %s", response)
 
         if "count" in response:
             data[ATTR_SENSOR_DEVICES] = response["count"]
-            #_LOGGER.warning("📶 Total devices count: %s", response["count"])
 
         for key, attr in NEW_STATUS_MAP.items():
             if key in response and "online_sta_count" in response[key]:
                 data[attr] = response[key]["online_sta_count"]
-                #_LOGGER.warning("📶 Set %s = %s", attr, response[key]["online_sta_count"])
 
         _other_devices = sum(
             int(data[attr]) for attr in NEW_STATUS_MAP.values() if attr in data
@@ -1221,9 +1198,8 @@ class LuciUpdater(DataUpdateCoordinator):
 
         if _other_devices > 0 and ATTR_SENSOR_DEVICES in data:
             _other_devices = int(data[ATTR_SENSOR_DEVICES]) - _other_devices
-            data[ATTR_SENSOR_DEVICES_LAN] = max(_other_devices, 0)
-            #_LOGGER.warning("📶 Calculated LAN devices: %s", data[ATTR_SENSOR_DEVICES_LAN])
 
+            data[ATTR_SENSOR_DEVICES_LAN] = max(_other_devices, 0)
 
     def _clean_devices(self) -> None:
         """Clean devices."""

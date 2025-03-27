@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from enum import Enum, IntEnum, StrEnum  # type: ignore
+from enum import Enum, IntEnum  # type: ignore
+
+from homeassistant.backports.enum import StrEnum
 
 from .const import (
     ATTR_SWITCH_WIFI_2_4,
@@ -252,6 +254,3 @@ class Model(str, Enum):
     RB08 = "rb08"  # 2022.07.04
     R4AV2 = "r4av2"  # 2022
     CB0401 = "cb0401"  # 2022
-    RD03 = "rd03" # 2023.12.18
-    RD15 = "rd15"
-    RN06 = "rn06"

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .logger import _LOGGER
+import logging
 from typing import Any, Final
 
 from homeassistant.components.switch import (
@@ -31,8 +31,6 @@ from .const import (
     ATTR_WIFI_5_0_DATA,
     ATTR_WIFI_5_0_GAME_DATA,
     ATTR_WIFI_GUEST_DATA,
-    ATTR_SWITCH_QOS_NAME,
-    ATTR_SWITCH_QOS,
 )
 from .entity import MiWifiEntity
 from .enum import Wifi
@@ -57,8 +55,6 @@ ICONS: Final = {
     f"{ATTR_SWITCH_WIFI_5_0_GAME}_{STATE_OFF}": "mdi:wifi-off",
     f"{ATTR_SWITCH_WIFI_GUEST}_{STATE_ON}": "mdi:wifi-lock-open",
     f"{ATTR_SWITCH_WIFI_GUEST}_{STATE_OFF}": "mdi:wifi-off",
-    f"{ATTR_SWITCH_QOS}_{STATE_ON}": "mdi:wifi-plus",
-    f"{ATTR_SWITCH_QOS}_{STATE_OFF}": "mdi:wifi-minus",
 }
 
 MIWIFI_SWITCHES: tuple[SwitchEntityDescription, ...] = (
@@ -90,16 +86,9 @@ MIWIFI_SWITCHES: tuple[SwitchEntityDescription, ...] = (
         entity_category=EntityCategory.CONFIG,
         entity_registry_enabled_default=False,
     ),
-    SwitchEntityDescription(
-        key=ATTR_SWITCH_QOS,
-        name=ATTR_SWITCH_QOS_NAME,
-        icon=ICONS[f"{ATTR_SWITCH_QOS}_{STATE_ON}"],
-        entity_category=EntityCategory.CONFIG,
-        entity_registry_enabled_default=True,
-    ),
 )
 
- 
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -174,19 +163,18 @@ class MiWifiSwitch(MiWifiEntity, SwitchEntity):
                 DATA_MAP[self.entity_description.key], {}
             )
 
-        is_available: bool = False
+        is_available: bool = self._additional_prepare() and len(wifi_data) > 0
 
-        if self.entity_description.key in [
-                ATTR_SWITCH_QOS,
-                ]:
-            is_available = True
-        else:
-            is_available = self._additional_prepare() and len(wifi_data) > 0
+        data_changed: list = [
+            key
+            for key, value in wifi_data.items()
+            if key not in self._wifi_data or value != self._wifi_data[key]
+        ]
 
         if (
             self._attr_is_on == is_on
             and self._attr_available == is_available
-            and self._data_not_changed(wifi_data)
+            and not data_changed
         ):
             return
 
@@ -254,17 +242,6 @@ class MiWifiSwitch(MiWifiEntity, SwitchEntity):
 
         await self._async_update_guest_wifi(data)
 
-    async def _qos_on(self) -> None:
-        """QOS on action"""
-
-        await self._async_update_qos(1)
-
-    async def _qos_off(self) -> None:
-        """QOS off action"""
-
-        await self._async_update_qos(0)
-
-
     async def _async_update_wifi_adapter(self, data: dict) -> None:
         """Update wifi adapter
 
@@ -277,7 +254,7 @@ class MiWifiSwitch(MiWifiEntity, SwitchEntity):
             await self._updater.luci.set_wifi(new_data)
             self._wifi_data = new_data
         except LuciError as _e:
-            _LOGGER.warning("WiFi update error: %r", _e)
+            _LOGGER.debug("WiFi update error: %r", _e)
 
     async def _async_update_guest_wifi(self, data: dict) -> None:
         """Update guest wifi
@@ -291,16 +268,7 @@ class MiWifiSwitch(MiWifiEntity, SwitchEntity):
             await self._updater.luci.set_guest_wifi(new_data)
             self._wifi_data = new_data
         except LuciError as _e:
-            _LOGGER.warning("WiFi update error: %r", _e)
-    async def _async_update_qos(self, state: int = 1) -> None:
-        """Update QOS
-
-        :param data: dict: QOS data
-        """
-        try:
-            await self._updater.luci.qos_toggle(state)
-        except LuciError as _e:
-            _LOGGER.warning("QOS update error: %r", _e)
+            _LOGGER.debug("WiFi update error: %r", _e)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on action
@@ -340,20 +308,6 @@ class MiWifiSwitch(MiWifiEntity, SwitchEntity):
             self._change_icon(is_on)
 
             self.async_write_ha_state()
-
-    def _data_not_changed(self, wifi_data: dict) -> bool:
-
-        if self.entity_description.key in [
-            ATTR_SWITCH_QOS,
-        ]:
-            return False
-        data_changed: list = [
-            key
-            for key, value in wifi_data.items()
-            if key not in self._wifi_data or value != self._wifi_data[key]
-        ]
-
-        return not data_changed
 
     def _additional_prepare(self) -> bool:
         """Prepare wifi switch
