@@ -260,6 +260,5 @@ class Model(str, Enum):
     RN01 = "rn01"
     RD08 = "rd08"
     RD28 = "rd28"
-    RD18 = "rd18"
     CB0401V2 = "cb0401v2" 
     
