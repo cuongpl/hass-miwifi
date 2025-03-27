@@ -258,7 +258,6 @@ class Model(str, Enum):
     RC06 = "rc06"  # Xiaomi Router 7000
     RD18 = "rd18"
     RN01 = "rn01"
-    RC06 = "rc06" #(BE7000)
     RD08 = "rd08"
     RD28 = "rd28"
     RD18 = "rd18"
