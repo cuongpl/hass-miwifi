@@ -1,2 +1,4 @@
 open_collective: hass-miwifi
-custom: ["https://buymeacoffee.com/mamontech", "https://qiwi.com/n/JuanManuelRomeroGarcia"]
+custom:
+  - https://www.paypal.com/paypalme/my/profile
+  - https://wise.com/pay/me/juanmanuelr175
