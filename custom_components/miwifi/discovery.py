@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import logging
+from .logger import _LOGGER
 from typing import Any
 
 from homeassistant import config_entries
@@ -24,7 +24,7 @@ from .const import (
 from .exceptions import LuciConnectionError, LuciError
 from .luci import LuciClient
 
-_LOGGER = logging.getLogger(__name__)
+
 
 
 @callback

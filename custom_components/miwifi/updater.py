@@ -1081,9 +1081,8 @@ class LuciUpdater(DataUpdateCoordinator):
 
         self.data[ATTR_SENSOR_DEVICES] += 1
 
-        code: str = _device.get(ATTR_TRACKER_CONNECTION, Connection.LAN).name.replace(
-            "WIFI_", ""
-        )
+        connection = _device.get(ATTR_TRACKER_CONNECTION)
+        code: str = (connection or Connection.LAN).name.replace("WIFI_", "")
         code = f"{ATTR_SENSOR_DEVICES}_{code}".lower()
 
         self.data[code] += 1

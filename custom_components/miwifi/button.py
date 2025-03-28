@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import logging
+from .logger import _LOGGER
 
 from homeassistant.components.button import (
     ENTITY_ID_FORMAT,
@@ -32,7 +32,7 @@ MIWIFI_BUTTONS: tuple[ButtonEntityDescription, ...] = (
     ),
 )
 
-_LOGGER = logging.getLogger(__name__)
+
 
 
 async def async_setup_entry(

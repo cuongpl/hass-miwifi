@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import logging
+from .logger import _LOGGER
 from typing import Final
 
 from homeassistant.components.select import (
@@ -132,7 +132,7 @@ MIWIFI_SELECTS: tuple[SelectEntityDescription, ...] = (
     ),
 )
 
-_LOGGER = logging.getLogger(__name__)
+
 
 
 async def async_setup_entry(
@@ -140,13 +140,6 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up MiWifi switch entry.
-
-    :param hass: HomeAssistant: Home Assistant object
-    :param config_entry: ConfigEntry: ConfigEntry object
-    :param async_add_entities: AddEntitiesCallback: AddEntitiesCallback callback object
-    """
-
     updater: LuciUpdater = async_get_updater(hass, config_entry.entry_id)
 
     entities: list[MiWifiSelect] = [
@@ -168,25 +161,15 @@ async def async_setup_entry(
 
 
 class MiWifiSelect(MiWifiEntity, SelectEntity):
-    """MiWifi select entry."""
-
     def __init__(
         self,
         unique_id: str,
         description: SelectEntityDescription,
         updater: LuciUpdater,
     ) -> None:
-        """Initialize switch.
-
-        :param unique_id: str: Unique ID
-        :param description: SelectEntityDescription: SelectEntityDescription object
-        :param updater: LuciUpdater: Luci updater object
-        """
-
-        MiWifiEntity.__init__(self, unique_id, description, updater, ENTITY_ID_FORMAT)
+        super().__init__(unique_id, description, updater, ENTITY_ID_FORMAT)
 
         self._attr_current_option = updater.data.get(description.key, None)
-        self._change_icon(self._attr_current_option)
 
         self._attr_options = []
         if description.key in CHANNELS_MAP:
@@ -213,9 +196,12 @@ class MiWifiSelect(MiWifiEntity, SelectEntity):
             updater.data.get(ATTR_STATE, False) and len(self._attr_options) > 0
         )
 
-    def _handle_coordinator_update(self) -> None:
-        """Update state."""
+    @property
+    def icon(self) -> str | None:
+        option = self._attr_current_option
+        return ICONS.get(f"{self.entity_description.key}_{option}")
 
+    def _handle_coordinator_update(self) -> None:
         current_option: str = self._updater.data.get(self.entity_description.key, False)
 
         wifi_data: dict = {}
@@ -247,76 +233,27 @@ class MiWifiSelect(MiWifiEntity, SelectEntity):
         self._attr_current_option = current_option
         self._wifi_data = wifi_data
 
-        self._change_icon(current_option)
-
         self.async_write_ha_state()
 
     async def _wifi_2_4_channel_change(self, option: str) -> None:
-        """Wifi 2.4G change channel
-
-        :param option: str: Option value
-        """
-
-        data: dict = {"wifiIndex": Wifi.ADAPTER_2_4.value, "channel": option}
-
-        await self._async_update_wifi_adapter(data)
+        await self._async_update_wifi_adapter({"wifiIndex": Wifi.ADAPTER_2_4.value, "channel": option})
 
     async def _wifi_5_0_channel_change(self, option: str) -> None:
-        """Wifi 5G change channel
-
-        :param option: str: Option value
-        """
-
-        data: dict = {"wifiIndex": Wifi.ADAPTER_5_0.value, "channel": option}
-
-        await self._async_update_wifi_adapter(data)
+        await self._async_update_wifi_adapter({"wifiIndex": Wifi.ADAPTER_5_0.value, "channel": option})
 
     async def _wifi_5_0_game_channel_change(self, option: str) -> None:
-        """Wifi 5G Game change channel
-
-        :param option: str: Option value
-        """
-
-        data: dict = {"wifiIndex": Wifi.ADAPTER_5_0_GAME.value, "channel": option}
-
-        await self._async_update_wifi_adapter(data)
+        await self._async_update_wifi_adapter({"wifiIndex": Wifi.ADAPTER_5_0_GAME.value, "channel": option})
 
     async def _wifi_2_4_signal_strength_change(self, option: str) -> None:
-        """Wifi 2.4G change signal strength
-
-        :param option: str: Option value
-        """
-
-        data: dict = {"wifiIndex": Wifi.ADAPTER_2_4.value, "txpwr": option}
-
-        await self._async_update_wifi_adapter(data)
+        await self._async_update_wifi_adapter({"wifiIndex": Wifi.ADAPTER_2_4.value, "txpwr": option})
 
     async def _wifi_5_0_signal_strength_change(self, option: str) -> None:
-        """Wifi 5G change signal strength
-
-        :param option: str: Option value
-        """
-
-        data: dict = {"wifiIndex": Wifi.ADAPTER_5_0.value, "txpwr": option}
-
-        await self._async_update_wifi_adapter(data)
+        await self._async_update_wifi_adapter({"wifiIndex": Wifi.ADAPTER_5_0.value, "txpwr": option})
 
     async def _wifi_5_0_game_signal_strength_change(self, option: str) -> None:
-        """Wifi 5G Game change signal strength
-
-        :param option: str: Option value
-        """
-
-        data: dict = {"wifiIndex": Wifi.ADAPTER_5_0_GAME.value, "txpwr": option}
-
-        await self._async_update_wifi_adapter(data)
+        await self._async_update_wifi_adapter({"wifiIndex": Wifi.ADAPTER_5_0_GAME.value, "txpwr": option})
 
     async def _async_update_wifi_adapter(self, data: dict) -> None:
-        """Update wifi adapter
-
-        :param data: dict: Adapter data
-        """
-
         new_data: dict = self._wifi_data | data
 
         try:
@@ -326,26 +263,10 @@ class MiWifiSelect(MiWifiEntity, SelectEntity):
             _LOGGER.debug("WiFi update error: %r", _e)
 
     async def async_select_option(self, option: str) -> None:
-        """Select option
-
-        :param option: str: Option
-        """
-
         if action := getattr(self, f"_{self.entity_description.key}_change"):
             await action(option)
 
             self._updater.data[self.entity_description.key] = option
             self._attr_current_option = option
-            self._change_icon(option)
 
             self.async_write_ha_state()
-
-    def _change_icon(self, option: str) -> None:
-        """Change icon
-
-        :param option: str
-        """
-
-        icon_name: str = f"{self.entity_description.key}_{option}"
-        if icon_name in ICONS:
-            self._attr_icon = ICONS[icon_name]

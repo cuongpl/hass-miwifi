@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import logging
+from .logger import _LOGGER
 from enum import Enum
 from typing import Any, Final
 
@@ -198,7 +198,7 @@ MIWIFI_SENSORS: tuple[SensorEntityDescription, ...] = (
     ),
 )
 
-_LOGGER = logging.getLogger(__name__)
+
 
 
 async def async_setup_entry(

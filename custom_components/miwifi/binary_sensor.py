@@ -1,8 +1,6 @@
-"""Binary sensor component."""
-
 from __future__ import annotations
 
-import logging
+from .logger import _LOGGER
 from typing import Final
 
 from homeassistant.components.binary_sensor import (
@@ -70,7 +68,7 @@ MIWIFI_BINARY_SENSORS: tuple[BinarySensorEntityDescription, ...] = (
     ),
 )
 
-_LOGGER = logging.getLogger(__name__)
+
 
 
 async def async_setup_entry(
@@ -78,13 +76,6 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up MiWifi binary sensor entry.
-
-    :param hass: HomeAssistant: Home Assistant object
-    :param config_entry: ConfigEntry: Config Entry object
-    :param async_add_entities: AddEntitiesCallback: Async add callback
-    """
-
     updater: LuciUpdater = async_get_updater(hass, config_entry.entry_id)
 
     entities: list[MiWifiBinarySensor] = [
@@ -99,22 +90,13 @@ async def async_setup_entry(
 
 
 class MiWifiBinarySensor(MiWifiEntity, BinarySensorEntity):
-    """MiWifi binary sensor entry."""
-
     def __init__(
         self,
         unique_id: str,
         description: BinarySensorEntityDescription,
         updater: LuciUpdater,
     ) -> None:
-        """Initialize sensor.
-
-        :param unique_id: str: Unique ID
-        :param description: BinarySensorEntityDescription: BinarySensorEntityDescription object
-        :param updater: LuciUpdater: Luci updater object
-        """
-
-        MiWifiEntity.__init__(self, unique_id, description, updater, ENTITY_ID_FORMAT)
+        super().__init__(unique_id, description, updater, ENTITY_ID_FORMAT)
 
         self._attr_available: bool = (
             updater.data.get(ATTR_STATE, False)
@@ -123,11 +105,13 @@ class MiWifiBinarySensor(MiWifiEntity, BinarySensorEntity):
         )
 
         self._attr_is_on = updater.data.get(description.key, False)
-        self._change_icon(self._attr_is_on)
+
+    @property
+    def icon(self) -> str | None:
+        state = STATE_ON if self._attr_is_on else STATE_OFF
+        return ICONS.get(f"{self.entity_description.key}_{state}")
 
     def _handle_coordinator_update(self) -> None:
-        """Update state."""
-
         is_available: bool = (
             self._updater.data.get(ATTR_STATE, False)
             if self.entity_description.key != ATTR_STATE
@@ -136,25 +120,10 @@ class MiWifiBinarySensor(MiWifiEntity, BinarySensorEntity):
 
         is_on: bool = self._updater.data.get(self.entity_description.key, False)
 
-        if self._attr_is_on == is_on and self._attr_available == is_available:  # type: ignore
+        if self._attr_is_on == is_on and self._attr_available == is_available:
             return
 
         self._attr_available = is_available
         self._attr_is_on = is_on
 
-        self._change_icon(is_on)
-
         self.async_write_ha_state()
-
-    def _change_icon(self, is_on: bool) -> None:
-        """Change icon
-
-        :param is_on: bool
-        """
-
-        icon_name: str = (
-            f"{self.entity_description.key}_{STATE_ON if is_on else STATE_OFF}"
-        )
-
-        if icon_name in ICONS:
-            self._attr_icon = ICONS[icon_name]

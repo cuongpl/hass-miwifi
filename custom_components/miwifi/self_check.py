@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import logging
+from .logger import _LOGGER
 import urllib.parse
 from typing import Final
 
@@ -38,7 +38,7 @@ SELF_CHECK_METHODS: Final = (
     ("xqnetwork/set_wifi_without_restart", "⚪"),
 )
 
-_LOGGER = logging.getLogger(__name__)
+
 
 
 async def async_self_check(hass: HomeAssistant, client: LuciClient, model: str) -> None:

@@ -1,16 +1,13 @@
-"""Light component."""
-
-
 from __future__ import annotations
 
-import contextlib
-import logging
+from .logger import _LOGGER
 from typing import Any, Final
 
 from homeassistant.components.light import (
     ENTITY_ID_FORMAT,
     LightEntity,
     LightEntityDescription,
+    ColorMode,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_OFF, STATE_ON
@@ -40,7 +37,7 @@ MIWIFI_LIGHTS: tuple[LightEntityDescription, ...] = (
     ),
 )
 
-_LOGGER = logging.getLogger(__name__)
+
 
 
 async def async_setup_entry(
@@ -48,29 +45,25 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up MiWifi light entry.
-
-    :param hass: HomeAssistant: Home Assistant object
-    :param config_entry: ConfigEntry: ConfigEntry object
-    :param async_add_entities: AddEntitiesCallback: AddEntitiesCallback callback object
-    """
+    """Set up MiWifi light entry."""
 
     updater: LuciUpdater = async_get_updater(hass, config_entry.entry_id)
 
-    entities: list[MiWifiLight] = [
+    async_add_entities([
         MiWifiLight(
-            f"{config_entry.entry_id}-{description.key}",
-            description,
+            f"{config_entry.entry_id}-{ATTR_LIGHT_LED}",
+            MIWIFI_LIGHTS[0],
             updater,
         )
-        for description in MIWIFI_LIGHTS
-    ]
-    async_add_entities(entities)
+    ])
 
 
-# pylint: disable=too-many-ancestors
 class MiWifiLight(MiWifiEntity, LightEntity):
-    """MiWifi light entry."""
+    """MiWifi light entity for controlling router LED."""
+
+    _attr_supported_color_modes = {ColorMode.ONOFF}
+    _attr_color_mode = ColorMode.ONOFF
+    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(
         self,
@@ -78,94 +71,37 @@ class MiWifiLight(MiWifiEntity, LightEntity):
         description: LightEntityDescription,
         updater: LuciUpdater,
     ) -> None:
-        """Initialize light.
-
-        :param unique_id: str: Unique ID
-        :param description: LightEntityDescription: LightEntityDescription object
-        :param updater: LuciUpdater: Luci updater object
-        """
-
-        MiWifiEntity.__init__(self, unique_id, description, updater, ENTITY_ID_FORMAT)
-
+        super().__init__(unique_id, description, updater, ENTITY_ID_FORMAT)
         self._attr_is_on = updater.data.get(description.key, False)
-        self._change_icon(self._attr_is_on)
+        self._attr_available = updater.data.get(ATTR_STATE, True)
+
+    @property
+    def icon(self) -> str | None:
+        state = STATE_ON if self._attr_is_on else STATE_OFF
+        return ICONS.get(f"{self.entity_description.key}_{state}")
 
     def _handle_coordinator_update(self) -> None:
-        """Update state."""
+        """Update state on data refresh."""
+        is_on = self._updater.data.get(self.entity_description.key, False)
+        is_available = self._updater.data.get(ATTR_STATE, True)
 
-        is_available: bool = self._updater.data.get(ATTR_STATE, False)
-
-        is_on: bool = self._updater.data.get(self.entity_description.key, False)
-
-        if self._attr_is_on == is_on and self._attr_available == is_available:  # type: ignore
-            return
-
-        self._attr_available = is_available
-        self._attr_is_on = is_on
-
-        self._change_icon(is_on)
-
-        self.async_write_ha_state()
-
-    async def _led_on(self) -> None:
-        """Led on action"""
-
-        with contextlib.suppress(LuciError):
-            await self._updater.luci.led(1)
-
-    async def _led_off(self) -> None:
-        """Led off action"""
-
-        with contextlib.suppress(LuciError):
-            await self._updater.luci.led(0)
-
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn on action
-
-        :param kwargs: Any: Any arguments
-        """
-
-        await self._async_call(
-            f"_{self.entity_description.key}_{STATE_ON}", STATE_ON, **kwargs
-        )
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn off action
-
-        :param kwargs: Any: Any arguments
-        """
-
-        await self._async_call(
-            f"_{self.entity_description.key}_{STATE_OFF}", STATE_OFF, **kwargs
-        )
-
-    async def _async_call(self, method: str, state: str, **kwargs: Any) -> None:
-        """Async turn action
-
-        :param method: str: Call method
-        :param state: str: Call state
-        :param kwargs: Any: Any arguments
-        """
-
-        if action := getattr(self, method):
-            await action()
-
-            is_on: bool = state == STATE_ON
-
-            self._updater.data[self.entity_description.key] = is_on
+        if self._attr_is_on != is_on or self._attr_available != is_available:
             self._attr_is_on = is_on
-            self._change_icon(is_on)
-
+            self._attr_available = is_available
             self.async_write_ha_state()
 
-    def _change_icon(self, is_on: bool) -> None:
-        """Change icon
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._led_action(True)
 
-        :param is_on: bool
-        """
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._led_action(False)
 
-        icon_name: str = (
-            f"{self.entity_description.key}_{STATE_ON if is_on else STATE_OFF}"
-        )
-        if icon_name in ICONS:
-            self._attr_icon = ICONS[icon_name]
+    async def _led_action(self, turn_on: bool) -> None:
+        try:
+            await self._updater.luci.led(1 if turn_on else 0)
+        except LuciError:
+            return
+
+        self._attr_is_on = turn_on
+        self._updater.data[self.entity_description.key] = turn_on
+        self.async_write_ha_state()
