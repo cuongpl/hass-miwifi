@@ -262,4 +262,8 @@ class Model(str, Enum):
     RD28 = "rd28" # Router Xiaomi RD28 Mesh AX3000 NE
     CB0401V2 = "cb0401v2" # Xiaomi 5G CPE Pro CB0401V2 
     RD23 = "rd23" # Xiaomi Router AX3000T EU
+    RC01 = "rc01" # Mi Router 10000
+    RD13 = "rd13" # Xiaomi Mesh System AC1200
+    RD16 = "rd16" # Xiaomi BE3600 Gigabit
+    RA80V2 = "RA80V2" # Xiaomi AX3000 (CN)
     
