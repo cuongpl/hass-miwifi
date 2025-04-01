@@ -266,4 +266,4 @@ class Model(str, Enum):
     RD13 = "rd13" # Xiaomi Mesh System AC1200
     RD16 = "rd16" # Xiaomi BE3600 Gigabit
     RA80V2 = "RA80V2" # Xiaomi AX3000 (CN)
-    
+    RN04 = "rn04" # ...

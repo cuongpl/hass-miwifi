@@ -1097,7 +1097,7 @@ class LuciUpdater(DataUpdateCoordinator):
         :return dict[str, Any]
         """
 
-        ip_attr: dict | None = device["ip"][0] if "ip" in device else None
+        ip_attr: dict | None = device["ip"][0] if "ip" in device and device["ip"] else None
 
         if self.is_force_load and "wifiIndex" in device:
             device["type"] = 6 if device["wifiIndex"] == 3 else device["wifiIndex"]

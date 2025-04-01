@@ -236,10 +236,17 @@ class LuciClient:
         except:
             _LOGGER.warning("Primary endpoint failed load qnetwork/get_netmode")
             try:
-                return await self.get("xqnetwork/get_netmode")
+                return await self.netmode()
             except Exception as e:
                 _LOGGER.error("Fallback endpoint also failed: %s", e)
-                return {"mode": "unknown"}
+                return {"mode": 0}
+    
+    async def netmode(self) -> dict:
+        """Compatibilidad con self_check: alias de xqnetwork/mode.
+
+        :return dict: dict con la información del modo de red.
+        """
+        return await self.get("xqnetwork/get_netmode")
 
     async def wifi_ap_signal(self) -> dict:
         """xqnetwork/wifiap_signal method.
