@@ -271,6 +271,9 @@ class Model(str, Enum):
     RB04 = "rb04"  # Redmi Router AX5400 Gaming 2022.02.17
     RB06 = "rb06"  # Redmi Router AX6S​ 2022.04.02
     RB08 = "rb08"  # Redmi Router AX6S 2022.07.04
+    
+    # RC Series
+    
     RC01 = "rc01"  # Mi Router 10000
     RC06 = "rc06"  # Xiaomi Router BE7000
     
