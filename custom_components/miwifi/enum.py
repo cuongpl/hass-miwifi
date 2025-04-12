@@ -220,6 +220,7 @@ class Model(str, Enum):
     
     CR6606 = "cr6606"  # Xiaomi Mi Router CR6606​ 2021.04.25
     CR8808 = "cr8808"  # Xiaomi Mi Router CR8808 2021.11.26
+    CR8816 = "cr8816"  # Xiaomi Mi Router CR8816 
     
     # D Series
     
@@ -275,7 +276,7 @@ class Model(str, Enum):
     
     # RD Series
     
-    RD03 = "rd03"  # Xiaomi Mi Router RD03 2023.12.18
+    RD03 = "rd03"  # Xiaomi Router AX3000T
     RD08 = "rd08"  # Xiaomi Router 6500 Pro
     RD12 = "rd12"  # Xiaomi Router AX1500 EU
     RD13 = "rd13"  # Xiaomi Mesh System AC1200
@@ -293,5 +294,6 @@ class Model(str, Enum):
     # RN Series
     
     RN01 = "rn01" # Xiaomi ROUTER BE3600 Pro Black
+    RN02 = "rn02" # Xiaomi Router BE6500
     RN04 = "rn04" # Xiaomi Whole House BE3600 Pro MASTER
     RN06 = "rn06" # Xiaomi Mi Router BE3600 2.5G (Versión Global)

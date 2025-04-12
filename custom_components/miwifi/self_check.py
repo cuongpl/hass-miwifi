@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from .logger import _LOGGER
 import urllib.parse
 from typing import Final
+
+from .logger import _LOGGER
+from .const import DOMAIN, NAME
+from .exceptions import LuciError
+from .luci import LuciClient
 
 import homeassistant.components.persistent_notification as pn
 from homeassistant.core import HomeAssistant
 from homeassistant.loader import async_get_integration
-
-from .const import DOMAIN, NAME
-from .exceptions import LuciError
-from .luci import LuciClient
 
 SELF_CHECK_METHODS: Final = (
     ("xqsystem/login", "🟢"),
@@ -40,53 +40,40 @@ SELF_CHECK_METHODS: Final = (
 )
 
 
-
-
 async def async_self_check(hass: HomeAssistant, client: LuciClient, model: str) -> None:
-    """Self check
+    """Perform a self check against known router API methods."""
 
-    :param hass: HomeAssistant: HomeAssistant object
-    :param client: LuciClient: Luci Client
-    :param model: str: Router model
-    """
+    results: dict[str, str] = {}
 
-    data: dict = {}
-
-    for code, method in SELF_CHECK_METHODS:
-        if method in ["🟢", "🔴", "⚪"]:
-            data[code] = method
-
+    for path, status in SELF_CHECK_METHODS:
+        if status in {"🟢", "🔴", "⚪"}:
+            # Static endpoints we just mark
+            results[path] = status
             continue
 
-        if action := getattr(client, method):
-            try:
-                await action()
-                data[code] = "🟢"
-            except LuciError:
-                data[code] = "🔴"
+        try:
+            method = getattr(client, status)
+            await method()
+            results[path] = "🟢"
+        except LuciError as e:
+            _LOGGER.warning("❌ Self check failed for %s: %s", path, e)
+            results[path] = "🔴"
 
-    title: str = f"Router {client.ip} not supported.\n\nModel: {model}"
+    # Format message
+    title = f"Router not supported.\n\nModel: {model}"
+    checklist = "\n".join(f" * {method}: {icon}" for method, icon in results.items())
+    message = f"{title}\n\nCheck list:\n{checklist}\n\n"
 
-    message: str = "Check list:"
-
-    for method, value in data.items():
-        message += f"\n * {method}: {value}"
-
+    # Create GitHub issue link
     integration = await async_get_integration(hass, DOMAIN)
-
-    # fmt: off
-    link: str = f"{integration.issue_tracker}/new?title=" \
-        + urllib.parse.quote_plus(f"Add supports {model}") \
-        + "&body=" \
+    issue_url = (
+        f"{integration.issue_tracker}/new?title="
+        + urllib.parse.quote_plus(f"Add support for {model}")
+        + "&body="
         + urllib.parse.quote_plus(message)
-    # fmt: on
+    )
 
-    message = f"{title}\n\n{message}\n\n"
+    message += f'<a href="{issue_url}" target="_blank">Create an issue with this data</a>'
 
-    # fmt: off
-    # pylint: disable=line-too-long
-    message += \
-        f'<a href="{link}" target="_blank">Create an issue with the data from this post to add support</a>'
-    # fmt: on
-
+    # Send notification
     pn.async_create(hass, message, NAME)

@@ -234,7 +234,7 @@ class LuciClient:
         try:
             return await self.get("xqnetwork/mode")
         except:
-            _LOGGER.warning("Primary endpoint failed load qnetwork/get_netmode")
+            _LOGGER.info("Primary endpoint failed load qnetwork/get_netmode")
             try:
                 return await self.netmode()
             except Exception as e:
