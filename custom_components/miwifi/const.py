@@ -49,6 +49,10 @@ CONF_REQUEST: Final = "request"
 CONF_RESPONSE: Final = "response"
 CONF_URI: Final = "uri"
 CONF_BODY: Final = "body"
+CONF_WAN_SPEED_UNIT: Final = "wan_speed_unit"
+DEFAULT_WAN_SPEED_UNIT: Final = "Mbps"
+WAN_SPEED_UNIT_OPTIONS: Final = ["B/s", "Mbps"]
+
 
 """Default settings"""
 DEFAULT_RETRY: Final = 10
@@ -119,6 +123,13 @@ ATTR_WIFI_GUEST_DATA: Final = "wifi_guest_data"
 ATTR_WIFI_ADAPTER_LENGTH: Final = "wifi_adapter_length"
 
 """Sensor attributes"""
+
+ATTR_SENSOR_WAN_TYPE: Final = "wan_type"
+ATTR_SENSOR_WAN_TYPE_NAME: Final = "WAN Type"
+
+ATTR_SENSOR_WAN_IP: Final = "wan_ip"
+ATTR_SENSOR_WAN_IP_NAME: Final = "WAN IP Address"
+
 ATTR_SENSOR_UPTIME: Final = "uptime"
 ATTR_SENSOR_UPTIME_NAME: Final = "Uptime"
 
@@ -167,6 +178,9 @@ ATTR_SENSOR_DEVICES_5_0_GAME_NAME: Final = f"{ATTR_SENSOR_DEVICES_NAME} 5G game"
 """Binary sensor attributes"""
 ATTR_BINARY_SENSOR_WAN_STATE: Final = "wan_state"
 ATTR_BINARY_SENSOR_WAN_STATE_NAME: Final = "Wan state"
+
+ATTR_BINARY_SENSOR_WAN_LINK: Final = "wan_link"
+ATTR_BINARY_SENSOR_WAN_LINK_NAME: Final = "WAN Link"
 
 ATTR_BINARY_SENSOR_DUAL_BAND: Final = "dual_band"
 ATTR_BINARY_SENSOR_DUAL_BAND_NAME: Final = "Dual band"

@@ -50,6 +50,10 @@ from .const import (
     ATTR_SENSOR_WAN_DOWNLOAD_SPEED_NAME,
     ATTR_SENSOR_WAN_UPLOAD_SPEED,
     ATTR_SENSOR_WAN_UPLOAD_SPEED_NAME,
+    ATTR_SENSOR_WAN_IP,
+    ATTR_SENSOR_WAN_IP_NAME,
+    ATTR_SENSOR_WAN_TYPE,
+    ATTR_SENSOR_WAN_TYPE_NAME,
     ATTR_STATE,
 )
 from .entity import MiWifiEntity
@@ -70,6 +74,7 @@ ONLY_WAN: Final = (
 
 PCS: Final = "pcs"
 BS: Final = "B/s"
+MBPS: Final = "Mb/s"
 
 MIWIFI_SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
@@ -134,7 +139,6 @@ MIWIFI_SENSORS: tuple[SensorEntityDescription, ...] = (
         key=ATTR_SENSOR_WAN_DOWNLOAD_SPEED,
         name=ATTR_SENSOR_WAN_DOWNLOAD_SPEED_NAME,
         icon="mdi:speedometer",
-        native_unit_of_measurement=BS,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=True,
@@ -143,7 +147,6 @@ MIWIFI_SENSORS: tuple[SensorEntityDescription, ...] = (
         key=ATTR_SENSOR_WAN_UPLOAD_SPEED,
         name=ATTR_SENSOR_WAN_UPLOAD_SPEED_NAME,
         icon="mdi:speedometer",
-        native_unit_of_measurement=BS,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=True,
@@ -196,6 +199,20 @@ MIWIFI_SENSORS: tuple[SensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
     ),
+    SensorEntityDescription(
+        key=ATTR_SENSOR_WAN_IP,
+        name=ATTR_SENSOR_WAN_IP_NAME,
+        icon="mdi:ip",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=True,
+    ),
+    SensorEntityDescription(
+        key=ATTR_SENSOR_WAN_TYPE,
+        name=ATTR_SENSOR_WAN_TYPE_NAME,
+        icon="mdi:lan",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=True,
+    ),
 )
 
 
@@ -243,8 +260,15 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
+from .const import (
+    ATTR_SENSOR_WAN_DOWNLOAD_SPEED,
+    ATTR_SENSOR_WAN_UPLOAD_SPEED,
+    CONF_WAN_SPEED_UNIT,
+    DEFAULT_WAN_SPEED_UNIT,
+)
+
 class MiWifiSensor(MiWifiEntity, SensorEntity):
-    """MiWifi binary sensor entry."""
+    """MiWifi sensor entity."""
 
     def __init__(
         self,
@@ -252,38 +276,61 @@ class MiWifiSensor(MiWifiEntity, SensorEntity):
         description: SensorEntityDescription,
         updater: LuciUpdater,
     ) -> None:
-        """Initialize sensor.
-
-        :param unique_id: str: Unique ID
-        :param description: SensorEntityDescription: SensorEntityDescription object
-        :param updater: LuciUpdater: Luci updater object
-        """
-
-        MiWifiEntity.__init__(self, unique_id, description, updater, ENTITY_ID_FORMAT)
-
-        state: Any = self._updater.data.get(description.key, None)
-        if state is not None and isinstance(state, Enum):
-            state = state.phrase  # type: ignore
-
-        self._attr_native_value = state
+        super().__init__(unique_id, description, updater, ENTITY_ID_FORMAT)
+        self._attr_native_value = self._compute_value()
+        self._attr_native_unit_of_measurement = self._compute_unit()
 
     def _handle_coordinator_update(self) -> None:
-        """Update state."""
-
+        """Update state from coordinator."""
         is_available: bool = self._updater.data.get(ATTR_STATE, False)
 
-        state: Any = self._updater.data.get(self.entity_description.key, None)
-
-        if state is not None and isinstance(state, Enum):
-            state = state.phrase  # type: ignore
+        new_value = self._compute_value()
+        new_unit = self._compute_unit()
 
         if (
-            self._attr_native_value == state
+            self._attr_native_value == new_value
+            and self._attr_native_unit_of_measurement == new_unit
             and self._attr_available == is_available  # type: ignore
         ):
             return
 
         self._attr_available = is_available
-        self._attr_native_value = state
-
+        self._attr_native_value = new_value
+        self._attr_native_unit_of_measurement = new_unit
         self.async_write_ha_state()
+
+    def _compute_value(self):
+        """Compute sensor value with conversion if needed."""
+        value = self._updater.data.get(self.entity_description.key)
+
+        if self.entity_description.key in (
+            ATTR_SENSOR_WAN_DOWNLOAD_SPEED,
+            ATTR_SENSOR_WAN_UPLOAD_SPEED,
+        ):
+            unit = (
+                self._updater.config_entry.options.get(CONF_WAN_SPEED_UNIT, DEFAULT_WAN_SPEED_UNIT)
+                if self._updater.config_entry
+                else DEFAULT_WAN_SPEED_UNIT
+            )
+            if unit == "Mbps" and isinstance(value, (int, float)):
+                return round(value / 1024 / 1024, 2)
+
+        if isinstance(value, Enum):
+            return value.phrase
+
+        return value
+
+    def _compute_unit(self):
+        """Determine unit based on user setting."""
+        if self.entity_description.key in (
+            ATTR_SENSOR_WAN_DOWNLOAD_SPEED,
+            ATTR_SENSOR_WAN_UPLOAD_SPEED,
+        ):
+            unit = (
+                self._updater.config_entry.options.get(CONF_WAN_SPEED_UNIT, DEFAULT_WAN_SPEED_UNIT)
+                if self._updater.config_entry
+                else DEFAULT_WAN_SPEED_UNIT
+            )
+            return "Mb/s" if unit == "Mbps" else "B/s"
+
+        return self.entity_description.native_unit_of_measurement
