@@ -1,0 +1,10 @@
+{
+  "state": {
+    "miwifi__mode": {
+      "default": "Por defecto",
+      "repeater": "Repetidor",
+      "access_point": "Punto de acceso",
+      "mesh": "Mesh"
+    }
+  }
+}

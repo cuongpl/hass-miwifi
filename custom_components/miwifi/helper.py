@@ -15,7 +15,15 @@ from homeassistant.loader import async_get_integration
 from homeassistant.util import slugify
 from httpx import codes
 
-from .const import DEFAULT_TIMEOUT, DOMAIN, MANUFACTURERS, STORAGE_VERSION
+from .const import (
+    DEFAULT_TIMEOUT,
+    DOMAIN,
+    MANUFACTURERS,
+    STORAGE_VERSION,
+    GLOBAL_LOG_STORE,
+    CONF_LOG_LEVEL,
+    DEFAULT_LOG_LEVEL,
+)
 from .updater import LuciUpdater
 
 
@@ -158,3 +166,16 @@ def detect_manufacturer(mac: str) -> str | None:
     identifier: str = mac.replace(":", "").upper()[:6]
 
     return MANUFACTURERS[identifier] if identifier in MANUFACTURERS else None
+
+async def get_global_log_level(hass: HomeAssistant) -> str:
+    """Get global log level from Store."""
+    store = Store(hass, 1, GLOBAL_LOG_STORE)
+    data = await store.async_load()
+    if not data or CONF_LOG_LEVEL not in data:
+        return DEFAULT_LOG_LEVEL
+    return data[CONF_LOG_LEVEL]
+
+async def set_global_log_level(hass: HomeAssistant, level: str) -> None:
+    """Set global log level into Store."""
+    store = Store(hass, 1, GLOBAL_LOG_STORE)
+    await store.async_save({CONF_LOG_LEVEL: level})

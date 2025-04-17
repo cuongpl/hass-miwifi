@@ -1,0 +1,58 @@
+{
+  "title": "MiWifi",
+  "config": {
+    "error": {
+      "ip_address.not_matched": "IP no válida",
+      "password.not_matched": "Contraseña o algoritmo de cifrado incorrectos",
+      "connection": "No se pudo establecer la conexión",
+      "router.not.supported": "El router no es compatible. Se ha enviado información detallada al centro de notificaciones."
+    },
+    "step": {
+      "discovery_confirm": {
+        "title": "Configuración de MiWiFi",
+        "description": "Introduce la dirección IP y la contraseña de tu router MiWiFi",
+        "data": {
+          "ip_address": "Dirección IP",
+          "password": "Contraseña",
+          "encryption_algorithm": "Algoritmo de cifrado de la contraseña",
+          "is_track_devices": "Rastrear dispositivos",
+          "stay_online": "Permanencia mínima en línea en segundos",
+          "scan_interval": "Intervalo de escaneo en segundos [PRO]",
+          "timeout": "Tiempo de espera de solicitudes en segundos [PRO]",
+          "log_level": "Nivel de log (global)"
+        }
+      }
+    }
+  },
+  "options": {
+    "error": {
+      "ip_address.not_matched": "IP no válida",
+      "password.not_matched": "Contraseña o algoritmo de cifrado incorrectos",
+      "connection": "No se pudo establecer la conexión",
+      "router.not.supported": "El router no es compatible. Se ha enviado información detallada al centro de notificaciones."
+      },
+    "step": {
+      "init": {
+        "title": "Configuración de MiWiFi",
+        "description": "Introduce la dirección IP y la contraseña de tu router MiWiFi",
+        "data": {
+          "ip_address": "Dirección IP",
+          "password": "Contraseña",
+          "encryption_algorithm": "Algoritmo de cifrado de la contraseña",
+          "is_track_devices": "Rastrear dispositivos",
+          "stay_online": "Permanencia mínima en línea en segundos",
+          "scan_interval": "Intervalo de escaneo en segundos [PRO]",
+          "activity_days": "Días permitidos desde la última actividad [PRO]",
+          "timeout": "Tiempo de espera de solicitudes en segundos [PRO]",
+          "is_force_load": "Cargar dispositivos forzosamente en modo repetidor [PRO]",
+          "log_level": "Nivel de log (global)"
+        }
+      }
+    }
+  },
+  "system_health": {
+    "info": {
+      "version": "Version"
+    }
+  }
+}

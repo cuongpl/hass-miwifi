@@ -1,5 +1,3 @@
-"""Configuration flows."""
-
 from __future__ import annotations
 
 import contextlib
@@ -35,16 +33,23 @@ from .const import (
     CONF_WAN_SPEED_UNIT,
     DEFAULT_WAN_SPEED_UNIT,
     WAN_SPEED_UNIT_OPTIONS,
+    CONF_LOG_LEVEL,
+    DEFAULT_LOG_LEVEL,
+    LOG_LEVEL_OPTIONS,
 )
 from .discovery import async_start_discovery
 from .enum import EncryptionAlgorithm
-from .helper import async_user_documentation_url, async_verify_access, get_config_value
+from .helper import (
+    async_user_documentation_url,
+    async_verify_access,
+    get_config_value,
+    get_global_log_level,
+    set_global_log_level,
+)
 from .updater import LuciUpdater, async_get_updater
 
 
 class MiWifiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore
-    """First time set up flow."""
-
     _discovered_device: ConfigType | None = None
 
     @staticmethod
@@ -52,7 +57,6 @@ class MiWifiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignor
     def async_get_options_flow(
         config_entry: config_entries.ConfigEntry,
     ) -> MiWifiOptionsFlow:
-        """Get the options flow for this handler."""
         return MiWifiOptionsFlow(config_entry)
 
     async def async_step_ssdp(self, discovery_info: ssdp.SsdpServiceInfo) -> FlowResult:
@@ -164,8 +168,6 @@ class MiWifiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignor
 
 
 class MiWifiOptionsFlow(config_entries.OptionsFlow):
-    """Changing options flow."""
-
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         self._config_entry = config_entry
 
@@ -173,6 +175,9 @@ class MiWifiOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
+            if CONF_LOG_LEVEL in user_input:
+                await set_global_log_level(self.hass, user_input[CONF_LOG_LEVEL])
+
             code: codes = await async_verify_access(
                 self.hass,
                 user_input[CONF_IP_ADDRESS],
@@ -193,7 +198,7 @@ class MiWifiOptionsFlow(config_entries.OptionsFlow):
                 errors["base"] = "ip_address.not_matched"
 
         return self.async_show_form(
-            step_id="init", data_schema=self._get_options_schema(), errors=errors
+            step_id="init", data_schema=await self._get_options_schema(), errors=errors
         )
 
     async def async_update_unique_id(self, unique_id: str) -> None:
@@ -206,7 +211,7 @@ class MiWifiOptionsFlow(config_entries.OptionsFlow):
 
         self.hass.config_entries.async_update_entry(self._config_entry, unique_id=unique_id)
 
-    def _get_options_schema(self) -> vol.Schema:
+    async def _get_options_schema(self) -> vol.Schema:
         schema: dict = {
             vol.Required(CONF_IP_ADDRESS, default=get_config_value(self._config_entry, CONF_IP_ADDRESS, "")): str,
             vol.Required(CONF_PASSWORD, default=get_config_value(self._config_entry, CONF_PASSWORD, "")): str,
@@ -224,10 +229,14 @@ class MiWifiOptionsFlow(config_entries.OptionsFlow):
         with contextlib.suppress(ValueError):
             updater: LuciUpdater = async_get_updater(self.hass, self._config_entry.entry_id)
             if not updater.is_repeater:
+                log_level = await get_global_log_level(self.hass)
+                schema[vol.Optional(CONF_LOG_LEVEL, default=log_level)] = vol.In(LOG_LEVEL_OPTIONS)
                 return vol.Schema(schema)
 
-        return vol.Schema(
-            schema | {
-                vol.Optional(CONF_IS_FORCE_LOAD, default=get_config_value(self._config_entry, CONF_IS_FORCE_LOAD, False)): cv.boolean,
-            }
-        )
+        log_level = await get_global_log_level(self.hass)
+        schema |= {
+            vol.Optional(CONF_IS_FORCE_LOAD, default=get_config_value(self._config_entry, CONF_IS_FORCE_LOAD, False)): cv.boolean,
+            vol.Optional(CONF_LOG_LEVEL, default=log_level): vol.In(LOG_LEVEL_OPTIONS),
+        }
+
+        return vol.Schema(schema)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
@@ -34,15 +35,27 @@ from .const import (
 from .logger import _LOGGER
 from .discovery import async_start_discovery
 from .enum import EncryptionAlgorithm
-from .helper import get_config_value, get_store
+from .helper import get_config_value, get_store, get_global_log_level
 from .services import SERVICES
 from .updater import LuciUpdater
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up entry configured via user interface."""
+    """Set up MiWiFi from a config entry."""
 
     async_start_discovery(hass)
+
+    # ðŸš€ Apply global log level from storage
+    log_level = await get_global_log_level(hass)
+    if log_level == "debug":
+        _LOGGER.setLevel(logging.DEBUG)
+        _LOGGER.debug("Log level set to DEBUG")
+    elif log_level == "info":
+        _LOGGER.setLevel(logging.INFO)
+        _LOGGER.info("Log level set to INFO")
+    else:
+        _LOGGER.setLevel(logging.WARNING)
+        _LOGGER.warning("Log level set to WARNING")
 
     is_new: bool = get_config_value(entry, OPTION_IS_FROM_FLOW, False)
 
@@ -73,7 +86,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_update_options
     )
 
-    # ✅ Hacemos refresh aquí mismo durante el setup (evita warning)
     await _updater.async_config_entry_first_refresh()
     if not _updater.last_update_success:
         if _updater.last_exception is not None:
@@ -86,6 +98,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     async def async_stop(event: Event) -> None:
+        """Stop the updater when Home Assistant stops."""
         await _updater.async_stop()
 
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, async_stop)
@@ -99,14 +112,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Update options for entry that was configured via user interface.
-
-    :param hass: HomeAssistant: Home Assistant object
-    :param entry: ConfigEntry: Config Entry object
-    """
-
+    """Update options when the config entry is updated."""
     if entry.entry_id not in hass.data[DOMAIN]:
         return
 
@@ -114,13 +121,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Remove entry configured via user interface.
-
-    :param hass: HomeAssistant: Home Assistant object
-    :param entry: ConfigEntry: Config Entry object
-    :return bool: Is success
-    """
-
+    """Unload a MiWiFi config entry."""
     if is_unload := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         _updater: LuciUpdater = hass.data[DOMAIN][entry.entry_id][UPDATER]
         await _updater.async_stop()
@@ -136,11 +137,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Clear store on deletion.
-
-    :param hass: HomeAssistant: Home Assistant object
-    :param entry: ConfigEntry: Config Entry object
-    """
-
+    """Handle removal of a MiWiFi config entry."""
     _updater: LuciUpdater = hass.data[DOMAIN][entry.entry_id][UPDATER]
     await _updater.async_stop(clean_store=True)
