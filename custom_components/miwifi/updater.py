@@ -629,38 +629,36 @@ class LuciUpdater(DataUpdateCoordinator):
         data[ATTR_SENSOR_MODE] = Mode.DEFAULT
 
     async def _async_prepare_wan(self, data: dict) -> None:
-        """Prepare WAN state, link status and IP address.
+        """Prepare WAN state, link status, IP address and type."""
 
-        :param data: dict
-        """
         try:
-            response = await self.luci.wan_info()
-
+            response: dict = await self.luci.wan_info()
+            
             _LOGGER.debug("WAN info response: %s", response)
 
             if not isinstance(response, dict):
-                raise ValueError("Invalid WAN info response format")
+                raise ValueError("WAN info response is not a dictionary")
 
-            info = response.get("info", {})
+            info = response.get("info")
+            if not isinstance(info, dict):
+                raise ValueError("WAN info['info'] is not a dictionary")
 
-            # True if WAN has been up for more than 0 seconds
+            # WAN State (based on uptime)
             data[ATTR_BINARY_SENSOR_WAN_STATE] = info.get("uptime", 0) > 0
 
-            # True if WAN link is physically active
+            # WAN Link (based on link status)
             data[ATTR_BINARY_SENSOR_WAN_LINK] = info.get("link", 0) == 1
 
-            # Extract WAN IP address if available
+            # WAN IP
             ipv4_list = info.get("ipv4", [])
             if isinstance(ipv4_list, list) and ipv4_list and "ip" in ipv4_list[0]:
                 data[ATTR_SENSOR_WAN_IP] = ipv4_list[0]["ip"]
             else:
                 data[ATTR_SENSOR_WAN_IP] = None
 
-            # Add WAN Type
-            # Add WAN Type
+            # WAN Type
             details = info.get("details", {})
             data[ATTR_SENSOR_WAN_TYPE] = details.get("wanType", "unknown")
-
 
         except Exception as e:
             _LOGGER.error("Error while preparing WAN info: %s", e)
@@ -668,7 +666,8 @@ class LuciUpdater(DataUpdateCoordinator):
             data[ATTR_BINARY_SENSOR_WAN_LINK] = False
             data[ATTR_SENSOR_WAN_IP] = None
             data[ATTR_SENSOR_WAN_TYPE] = "unknown"
-            
+
+                
 
     async def _async_prepare_led(self, data: dict) -> None:
         """Prepare led.
