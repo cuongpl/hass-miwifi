@@ -633,7 +633,6 @@ class LuciUpdater(DataUpdateCoordinator):
 
         try:
             response: dict = await self.luci.wan_info()
-            
             _LOGGER.debug("WAN info response: %s", response)
 
             if not isinstance(response, dict):
@@ -651,14 +650,17 @@ class LuciUpdater(DataUpdateCoordinator):
 
             # WAN IP
             ipv4_list = info.get("ipv4", [])
-            if isinstance(ipv4_list, list) and ipv4_list and "ip" in ipv4_list[0]:
-                data[ATTR_SENSOR_WAN_IP] = ipv4_list[0]["ip"]
+            if isinstance(ipv4_list, list) and ipv4_list and isinstance(ipv4_list[0], dict):
+                data[ATTR_SENSOR_WAN_IP] = ipv4_list[0].get("ip")
             else:
                 data[ATTR_SENSOR_WAN_IP] = None
 
             # WAN Type
-            details = info.get("details", {})
-            data[ATTR_SENSOR_WAN_TYPE] = details.get("wanType", "unknown")
+            details = info.get("details")
+            if isinstance(details, dict):
+                data[ATTR_SENSOR_WAN_TYPE] = details.get("wanType", "unknown")
+            else:
+                data[ATTR_SENSOR_WAN_TYPE] = "unknown"
 
         except Exception as e:
             _LOGGER.error("Error while preparing WAN info: %s", e)
