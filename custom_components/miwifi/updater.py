@@ -634,7 +634,13 @@ class LuciUpdater(DataUpdateCoordinator):
         :param data: dict
         """
         try:
-            response: dict = await self.luci.wan_info()
+            response = await self.luci.wan_info()
+
+            _LOGGER.debug("WAN info response: %s", response)
+
+            if not isinstance(response, dict):
+                raise ValueError("Invalid WAN info response format")
+
             info = response.get("info", {})
 
             # True if WAN has been up for more than 0 seconds
@@ -661,7 +667,8 @@ class LuciUpdater(DataUpdateCoordinator):
             data[ATTR_BINARY_SENSOR_WAN_STATE] = False
             data[ATTR_BINARY_SENSOR_WAN_LINK] = False
             data[ATTR_SENSOR_WAN_IP] = None
-
+            data[ATTR_SENSOR_WAN_TYPE] = "unknown"
+            
 
     async def _async_prepare_led(self, data: dict) -> None:
         """Prepare led.
