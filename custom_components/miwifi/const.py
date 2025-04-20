@@ -285,6 +285,11 @@ ATTR_CHANGES = (
     ATTR_TRACKER_OPTIONAL_MAC,
 )
 
+CONF_LOG_LEVEL = "log_level"
+DEFAULT_LOG_LEVEL = "info"
+LOG_LEVEL_OPTIONS = ["warning", "info", "debug"]
+GLOBAL_LOG_STORE = "miwifi_global_log_level"
+
 """Manufacturers"""
 # pylint: disable=too-many-lines,line-too-long
 MANUFACTURERS: Final = {
