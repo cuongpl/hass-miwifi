@@ -1,5 +1,3 @@
-"""Integration helper."""
-
 from __future__ import annotations
 
 import math
@@ -23,21 +21,20 @@ from .const import (
     GLOBAL_LOG_STORE,
     CONF_LOG_LEVEL,
     DEFAULT_LOG_LEVEL,
+    GLOBAL_PANEL_STORE,
+    DEFAULT_ENABLE_PANEL,
 )
 from .updater import LuciUpdater
 
 
+# ────────────────────────────────────────────────────────────────────────────────
+# CONFIGURATION HELPER
+# ────────────────────────────────────────────────────────────────────────────────
+
 def get_config_value(
     config_entry: config_entries.ConfigEntry | None, param: str, default=None
 ) -> Any:
-    """Get current value for configuration parameter.
-
-    :param config_entry: config_entries.ConfigEntry|None: config entry from Flow
-    :param param: str: parameter name for getting value
-    :param default: default value for parameter, defaults to None
-    :return Any: parameter value, or default value or None
-    """
-
+    """Get current value for configuration parameter."""
     return (
         config_entry.options.get(param, config_entry.data.get(param, default))
         if config_entry is not None
@@ -47,21 +44,12 @@ def get_config_value(
 
 async def async_verify_access(
     hass: HomeAssistant,
-    ip: str,  # pylint: disable=invalid-name
+    ip: str,
     password: str,
     encryption: str,
     timeout: int = DEFAULT_TIMEOUT,
 ) -> codes:
-    """Verify ip and password.
-
-    :param hass: HomeAssistant: Home Assistant object
-    :param ip: str: device ip address
-    :param encryption: str: password encryption
-    :param password: str: device password
-    :param timeout: int: Timeout
-    :return int: last update success
-    """
-
+    """Verify IP and password against the router."""
     updater = LuciUpdater(
         hass=hass,
         ip=ip,
@@ -70,112 +58,100 @@ async def async_verify_access(
         timeout=timeout,
         is_only_login=True,
     )
-
     await updater.async_request_refresh()
     await updater.async_stop()
-
     return updater.code
 
 
 async def async_user_documentation_url(hass: HomeAssistant) -> str:
-    """Get the documentation url for creating a local user.
-
-    :param hass: HomeAssistant: Home Assistant object
-    :return str: Documentation URL
-    """
-
+    """Return documentation URL for the integration."""
     integration = await async_get_integration(hass, DOMAIN)
-
     return f"{integration.documentation}"
 
 
 async def async_get_version(hass: HomeAssistant) -> str:
-    """Get the documentation url for creating a local user.
-
-    :param hass: HomeAssistant: Home Assistant object
-    :return str: Documentation URL
-    """
-
+    """Return current integration version."""
     integration = await async_get_integration(hass, DOMAIN)
-
     return f"{integration.version}"
 
 
 def generate_entity_id(entity_id_format: str, mac: str, name: str | None = None) -> str:
-    """Generate Entity ID
-
-    :param entity_id_format: str: Format
-    :param mac: str: Mac address
-    :param name: str | None: Name
-    :return str: Entity ID
-    """
-
+    """Generate a slugified entity ID based on MAC and optional name."""
     _name: str = f"_{name}" if name is not None else ""
-
     return entity_id_format.format(slugify(f"miwifi_{mac}{_name}".lower()))
 
 
-def get_store(hass: HomeAssistant, ip: str) -> Store:  # pylint: disable=invalid-name
-    """Create Store
-
-    :param hass: HomeAssistant: Home Assistant object
-    :param ip: str: IP address
-    :return Store: Store object
-    """
-
+def get_store(hass: HomeAssistant, ip: str) -> Store:
+    """Create a Store object for a given IP address."""
     return Store(hass, STORAGE_VERSION, f"{DOMAIN}/{ip}.json", encoder=JSONEncoder)
 
 
 def parse_last_activity(last_activity: str) -> int:
-    """Parse last activity string
-
-    :param last_activity: str: Last activity
-    :return int: Last activity in datetime
-    """
-
+    """Convert last activity datetime string to timestamp."""
     return int(
         time.mktime(datetime.strptime(last_activity, "%Y-%m-%dT%H:%M:%S").timetuple())
     )
 
 
 def pretty_size(speed: float) -> str:
-    """Convert up and down speed
-
-    :param speed: float
-    :return str: Speed
-    """
-
+    """Convert speed in bytes/s to human-readable form."""
     if speed == 0.0:
         return "0 B/s"
-
     _unit = ("B/s", "KB/s", "MB/s", "GB/s")
-
     _i = int(math.floor(math.log(speed, 1024)))
     _p = math.pow(1024, _i)
-
     return f"{round(speed / _p, 2)} {_unit[_i]}"
 
 
 def detect_manufacturer(mac: str) -> str | None:
-    """Get manufacturer by mac address
-
-    :param mac: str: Mac address
-    :return str | None: Manufacturer
-    """
-
+    """Get manufacturer based on MAC address prefix."""
     identifier: str = mac.replace(":", "").upper()[:6]
-
     return MANUFACTURERS[identifier] if identifier in MANUFACTURERS else None
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# GLOBAL CONFIGURATION STATE (CACHED)
+# ────────────────────────────────────────────────────────────────────────────────
+
+_global_log_level_cache: str | None = None
+_global_panel_state_cache: bool | None = None
+
 
 async def get_global_log_level(hass: HomeAssistant) -> str:
     """Get global log level from Store."""
+    global _global_log_level_cache
+    if _global_log_level_cache is not None:
+        return _global_log_level_cache
+
     store = Store(hass, 1, GLOBAL_LOG_STORE)
     data = await store.async_load()
-    if not data or CONF_LOG_LEVEL not in data:
-        return DEFAULT_LOG_LEVEL
-    return data[CONF_LOG_LEVEL]
+    _global_log_level_cache = data.get(CONF_LOG_LEVEL, DEFAULT_LOG_LEVEL) if data else DEFAULT_LOG_LEVEL
+    return _global_log_level_cache
+
 
 async def set_global_log_level(hass: HomeAssistant, level: str) -> None:
     """Set global log level into Store."""
+    global _global_log_level_cache
+    _global_log_level_cache = level
     store = Store(hass, 1, GLOBAL_LOG_STORE)
     await store.async_save({CONF_LOG_LEVEL: level})
+
+
+async def get_global_panel_state(hass: HomeAssistant) -> bool:
+    """Get the global panel enable state."""
+    global _global_panel_state_cache
+    if _global_panel_state_cache is not None:
+        return _global_panel_state_cache
+
+    store = Store(hass, 1, GLOBAL_PANEL_STORE)
+    data = await store.async_load()
+    _global_panel_state_cache = data.get("enabled", DEFAULT_ENABLE_PANEL) if data else DEFAULT_ENABLE_PANEL
+    return _global_panel_state_cache
+
+
+async def set_global_panel_state(hass: HomeAssistant, enabled: bool) -> None:
+    """Set the global panel enable state."""
+    global _global_panel_state_cache
+    _global_panel_state_cache = enabled
+    store = Store(hass, 1, GLOBAL_PANEL_STORE)
+    await store.async_save({"enabled": enabled})

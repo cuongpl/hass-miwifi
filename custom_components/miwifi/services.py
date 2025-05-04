@@ -156,9 +156,24 @@ class MiWifiRequestServiceCall(MiWifiServiceCall):
                     CONF_RESPONSE: response,
                 },
             )
+class MiWifiGetTopologyGraphServiceCall(MiWifiServiceCall):
+    """Get Topology Graph."""
+
+    async def async_call_service(self, service: ServiceCall) -> None:
+        """Execute service call."""
+        updater: LuciUpdater = self.get_updater(service)
+
+        await updater._async_prepare_topo()
+
+        if updater.data.get("topo_graph"):
+            _LOGGER.info("[MiWiFi] Topology graph retrieved successfully: %s", updater.data["topo_graph"])
+        else:
+            _LOGGER.warning("[MiWiFi] Topology graph could not be retrieved or is empty.")
 
 
 SERVICES: Final = (
     (SERVICE_CALC_PASSWD, MiWifiCalcPasswdServiceCall),
     (SERVICE_REQUEST, MiWifiRequestServiceCall),
+    ("get_topology_graph", MiWifiGetTopologyGraphServiceCall),
 )
+

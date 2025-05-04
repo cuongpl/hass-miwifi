@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from functools import cached_property
 from typing import Any, Final
 
+import os
 import homeassistant.components.persistent_notification as pn
 from homeassistant.const import CONF_IP_ADDRESS
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
@@ -18,7 +19,7 @@ from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.httpx_client import get_async_client
-from homeassistant.helpers.storage import Store
+from homeassistant.helpers.storage import Store, STORAGE_DIR
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import utcnow
 from httpx import codes
@@ -160,9 +161,6 @@ UNSUPPORTED: Final = {
     ]
 }
 
- 
-
-
 # pylint: disable=too-many-branches,too-many-lines,too-many-arguments
 class LuciUpdater(DataUpdateCoordinator):
     """Luci data updater for interaction with Luci API."""
@@ -222,14 +220,15 @@ class LuciUpdater(DataUpdateCoordinator):
 
         self.ip = ip  # pylint: disable=invalid-name
         self.is_force_load = is_force_load
-
-        self._store = store
-
         self._entry_id = entry_id
-
         self._scan_interval = scan_interval
         self._activity_days = activity_days
         self._is_only_login = is_only_login
+
+        if store is None and entry_id:
+            self._store = Store(hass, 1, f"miwifi/{entry_id}.json")
+        else:
+            self._store = store
 
         if hass is not None:
             super().__init__(
@@ -345,6 +344,8 @@ class LuciUpdater(DataUpdateCoordinator):
         if "new_status" not in self.data:
             #_LOGGER.warning("🔁 Forzando carga de new_status manualmente...")
             await self._async_prepare_new_status(self.data)
+            
+        await self._async_prepare_topo()
 
         return self.data
 
@@ -1332,6 +1333,52 @@ class LuciUpdater(DataUpdateCoordinator):
 
         await self._store.async_save(self.devices)
 
+    async def _async_prepare_topo(self) -> None:
+        """Prepare topology graph information."""
+        try:
+            topo_data = await self.luci.topo_graph()
+
+            if not topo_data or "graph" not in topo_data:
+                _LOGGER.info("[MiWiFi] No topology graph data available for router at %s", self.ip)
+                self.data["topo_graph"] = None
+                return
+
+            if self.data.get(ATTR_DEVICE_MAC_ADDRESS):
+                topo_data["graph"]["mac"] = self.data[ATTR_DEVICE_MAC_ADDRESS]
+                _LOGGER.debug("[MiWiFi] MAC añadida a topo_graph: %s", topo_data["graph"]["mac"])
+
+            self.data["topo_graph"] = topo_data
+            _LOGGER.debug("[MiWiFi] Topology graph data received for router at %s: %s", self.ip, topo_data)
+
+            # 🔍 Detectar nodos mesh nuevos
+            if "nodes" in topo_data.get("graph", {}):
+                for node in topo_data["graph"]["nodes"]:
+                    node_ip = node.get("ip")
+                    node_mac = node.get("mac")
+
+                    if not node_ip or node_ip == self.ip:
+                        continue
+
+                    if node_ip not in self.hass.data.get(DOMAIN, {}):
+                        _LOGGER.warning(
+                            "[MiWiFi] 🆕 Nodo Mesh detectado pero no integrado: IP=%s, MAC=%s",
+                            node_ip,
+                            node_mac,
+                        )
+
+        except LuciError as err:
+            _LOGGER.warning("[MiWiFi] Failed to get topology graph for router at %s: %s", self.ip, err)
+            self.data["topo_graph"] = None
+
+        except Exception as err:
+            _LOGGER.error("[MiWiFi] Unexpected error while getting topology graph for router at %s: %s", self.ip, err)
+            self.data["topo_graph"] = None
+
+    @property
+    def entry_id(self) -> str | None:
+        """Return the config entry ID."""
+        return self._entry_id
+
 
 @callback
 def async_get_integrations(hass: HomeAssistant) -> dict[str, dict]:
@@ -1376,3 +1423,4 @@ def async_get_updater(hass: HomeAssistant, identifier: str) -> LuciUpdater:
         return integrations[0]
 
     raise ValueError(_error)
+

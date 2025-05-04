@@ -19,7 +19,8 @@
           "stay_online": "Permanencia mínima en línea en segundos",
           "scan_interval": "Intervalo de escaneo en segundos [PRO]",
           "timeout": "Tiempo de espera de solicitudes en segundos [PRO]",
-          "log_level": "Nivel de log (global)"
+          "log_level": "Nivel de log (global)",
+          "enable_panel": "Habilitar panel de control"
         }
       }
     }

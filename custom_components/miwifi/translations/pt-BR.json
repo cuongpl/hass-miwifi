@@ -46,7 +46,10 @@
           "scan_interval": "Intervalo de varredura em segundos [PRO]",
           "activity_days": "Número permitido de dias de espera após a última atividade [PRO]",
           "timeout": "Tempo limite de solicitações em segundos [PRO]",
-          "is_force_load": "Inicialização forçada de dispositivos no modo repetidor [PRO]"
+          "is_force_load": "Inicialização forçada de dispositivos no modo repetidor [PRO]",
+          "enable_panel": "Ativar painel de controle",
+          "wan_speed_unit": "Unidade de velocidade WAN",
+          "log_level": "Nível de log (global)"
         }
       }
     }

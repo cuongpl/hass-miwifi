@@ -53,6 +53,17 @@ CONF_WAN_SPEED_UNIT: Final = "wan_speed_unit"
 DEFAULT_WAN_SPEED_UNIT: Final = "Mbps"
 WAN_SPEED_UNIT_OPTIONS: Final = ["B/s", "Mbps"]
 
+"""Panel const"""
+CONF_ENABLE_PANEL = "enable_panel"
+DEFAULT_ENABLE_PANEL = True
+GLOBAL_PANEL_STORE = "miwifi/miwifi_global_panel_state"
+PANEL_REPO_BASE_URL = "https://raw.githubusercontent.com/JuanManuelRomeroGarcia/miwifi-panel-frontend/main/"
+PANEL_REPO_FILES_URL = PANEL_REPO_BASE_URL + "files.json"
+PANEL_REPO_VERSION_URL = PANEL_REPO_BASE_URL + "version.json"
+PANEL_LOCAL_PATH = "www/miwifi"
+PANEL_STORAGE_FILE = ".storage/miwifi/miwifi_panel_version.json"
+PANEL_STATE_FILE = ".storage/miwifi/miwifi_panel_state.json"  
+
 
 """Default settings"""
 DEFAULT_RETRY: Final = 10
@@ -288,7 +299,7 @@ ATTR_CHANGES = (
 CONF_LOG_LEVEL = "log_level"
 DEFAULT_LOG_LEVEL = "info"
 LOG_LEVEL_OPTIONS = ["warning", "info", "debug"]
-GLOBAL_LOG_STORE = "miwifi_global_log_level"
+GLOBAL_LOG_STORE = "miwifi/miwifi_global_log_level"
 
 """Manufacturers"""
 # pylint: disable=too-many-lines,line-too-long

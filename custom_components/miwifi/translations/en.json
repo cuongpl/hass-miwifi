@@ -45,7 +45,8 @@
           "activity_days": "Allowed number of days to wait after the last activity [PRO]",
           "is_force_load": "Forced booting of devices in repeater mode [PRO]",
           "wan_speed_unit": "WAN speed unit",
-          "log_level": "Log level (global)"
+          "log_level": "Log level (global)",
+          "enable_panel": "Enable control panel"
         }
       }
     }

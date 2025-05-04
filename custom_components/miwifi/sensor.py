@@ -257,6 +257,10 @@ async def async_setup_entry(
             )
         )
 
+    async_add_entities([
+        MiWifiTopologyGraphSensor(updater),
+        MiWifiConfigSensor(updater), 
+    ])
     async_add_entities(entities)
 
 
@@ -334,3 +338,71 @@ class MiWifiSensor(MiWifiEntity, SensorEntity):
             return "Mb/s" if unit == "Mbps" else "B/s"
 
         return self.entity_description.native_unit_of_measurement
+    
+class MiWifiTopologyGraphSensor(SensorEntity):
+    """Sensor to represent the network topology graph."""
+
+    def __init__(self, updater: LuciUpdater) -> None:
+        self._attr_unique_id = f"{updater.entry_id}_topology_graph"
+        self._attr_name = "Topología MiWiFi"
+        self._updater = updater
+        self._attr_icon = "mdi:network"
+        self._attr_should_poll = False
+
+    @property
+    def native_value(self) -> str:
+        """Return the state of the topology sensor."""
+        return "ok" if self._updater.data.get("topo_graph") else "unavailable"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return the topology graph as attributes."""
+        return self._updater.data.get("topo_graph", {})
+
+
+    async def async_update(self) -> None:
+        """No polling, data is pushed from coordinator."""
+        pass
+
+from homeassistant.helpers.entity import Entity
+from .const import CONF_ENABLE_PANEL, CONF_WAN_SPEED_UNIT, CONF_LOG_LEVEL
+from .helper import get_global_log_level
+from .logger import _LOGGER
+
+class MiWifiConfigSensor(Entity):
+    """Sensor que expone la configuración actual como atributos."""
+
+    def __init__(self, updater: LuciUpdater) -> None:
+        self._updater = updater
+        self._attr_name = "MiWiFi Config"
+        self._attr_unique_id = f"{updater.entry_id}_config"
+        self._attr_icon = "mdi:cog"
+        self._attr_should_poll = True  # ← importante para permitir actualización manual
+        self._attr_native_value = "ok"
+        self._extra_attrs: dict[str, Any] = {}
+
+    @property
+    def state(self):
+        return self._attr_native_value
+
+    @property
+    def extra_state_attributes(self):
+        return self._extra_attrs
+
+    async def async_added_to_hass(self):
+        """Se ejecuta cuando la entidad se agrega a HA."""
+        await self.async_update()
+        self.async_write_ha_state()
+
+    async def async_update(self):
+        """Actualizar atributos al iniciar o al hacer update_entity."""
+        from .helper import get_global_log_level
+
+        log_level = await get_global_log_level(self._updater.hass)
+        config = self._updater.config_entry.options
+
+        self._extra_attrs = {
+            "panel_activo": config.get(CONF_ENABLE_PANEL, True),
+            "speed_unit": config.get(CONF_WAN_SPEED_UNIT, "MB"),
+            "log_level": log_level,
+        }
