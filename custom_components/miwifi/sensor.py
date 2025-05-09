@@ -397,12 +397,15 @@ class MiWifiConfigSensor(Entity):
     async def async_update(self):
         """Actualizar atributos al iniciar o al hacer update_entity."""
         from .helper import get_global_log_level
+        from .frontend import read_local_version
 
         log_level = await get_global_log_level(self._updater.hass)
         config = self._updater.config_entry.options
+        panel_version = await read_local_version(self._updater.hass)
 
         self._extra_attrs = {
             "panel_activo": config.get(CONF_ENABLE_PANEL, True),
             "speed_unit": config.get(CONF_WAN_SPEED_UNIT, "MB"),
             "log_level": log_level,
+            "panel_version": panel_version,
         }

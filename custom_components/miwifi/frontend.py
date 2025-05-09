@@ -151,7 +151,7 @@ async def async_register_panel(hass: HomeAssistant, version: str) -> None:
 
 async def async_remove_miwifi_panel(hass: HomeAssistant) -> None:
     try:
-        async_remove_panel(hass, "miwifi")
+        await async_remove_panel(hass, "miwifi")
         _LOGGER.info("[MiWiFi] Panel eliminado correctamente.")
     except Exception as e:
-        _LOGGER.warning(f"[MiWiFi] No se pudo eliminar el panel: {e}")
+        _LOGGER.debug(f"[MiWiFi] El panel no estaba registrado: {e}")

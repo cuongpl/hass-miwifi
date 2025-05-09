@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import aiohttp
 from .logger import _LOGGER
 from typing import Any, Final
 
@@ -34,6 +35,12 @@ from .const import (
     ATTR_UPDATE_TITLE,
     REPOSITORY,
 )
+from .frontend import (
+    async_download_panel_if_needed,
+    async_remove_miwifi_panel,
+    async_register_panel,
+)
+import homeassistant.components.persistent_notification as pn
 from .entity import MiWifiEntity
 from .enum import Model
 from .exceptions import LuciError
@@ -75,9 +82,6 @@ MIWIFI_UPDATES: tuple[UpdateEntityDescription, ...] = (
     ),
 )
 
- 
-
-
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -92,7 +96,10 @@ async def async_setup_entry(
 
     updater: LuciUpdater = async_get_updater(hass, config_entry.entry_id)
 
-    if entities := [
+    entities: list[UpdateEntity] = []
+
+    # Añadir entidades de firmware (si aplica)
+    entities += [
         MiWifiUpdate(
             f"{config_entry.entry_id}-{description.key}",
             description,
@@ -100,8 +107,29 @@ async def async_setup_entry(
         )
         for description in MIWIFI_UPDATES
         if description.key != ATTR_UPDATE_FIRMWARE or updater.supports_update
-    ]:
+    ]
+
+    # Verificar y añadir entidad para el panel frontend
+    async with aiohttp.ClientSession() as session:
+        try:
+            local_version = await read_local_version(hass)
+            remote_version = await read_remote_version(session)
+
+            if remote_version != "0.0" and local_version != remote_version:
+                entities.append(
+                    MiWifiPanelUpdate(
+                        f"{config_entry.entry_id}-miwifi_panel",
+                        updater,
+                        local_version,
+                        remote_version,
+                    )
+                )
+        except Exception as e:
+            _LOGGER.warning(f"[MiWiFi] No se pudo comprobar la versión del panel: {e}")
+
+    if entities:
         async_add_entities(entities)
+
 
 
 # pylint: disable=too-many-ancestors
@@ -245,3 +273,76 @@ class MiWifiUpdate(MiWifiEntity, UpdateEntity):
         """
 
         return MAP_NOTES[self.entity_description.key]
+
+
+class MiWifiPanelUpdate(MiWifiEntity, UpdateEntity):
+    """Entity that shows whether a new version of the MiWiFi panel is available."""
+
+    _remote_version: str
+
+    def __init__(
+        self,
+        unique_id: str,
+        updater: LuciUpdater,
+        local_version: str,
+        remote_version: str,
+    ) -> None:
+        description = UpdateEntityDescription(
+            key="miwifi_panel",
+            name="MiWiFi Panel Frontend",
+            device_class=UpdateDeviceClass.FIRMWARE,
+            entity_category=EntityCategory.CONFIG,
+            entity_registry_enabled_default=True,
+        )
+
+        super().__init__(unique_id, description, updater, ENTITY_ID_FORMAT)
+
+        self._attr_supported_features = UpdateEntityFeature.INSTALL | UpdateEntityFeature.RELEASE_NOTES
+        self._attr_title = "MiWiFi Panel"
+        self._attr_installed_version = local_version
+        self._attr_latest_version = remote_version
+        self._attr_available = local_version != remote_version
+        self._remote_version = remote_version
+
+    @property
+    def entity_picture(self) -> str | None:
+        """Optional image for UI."""
+        return "https://raw.githubusercontent.com/JuanManuelRomeroGarcia/miwifi-panel-frontend/main/assets/icon_panel.png"
+
+    @property
+    def release_url(self) -> str | None:
+        """Optional link to changelog or repo."""
+        return "https://github.com/JuanManuelRomeroGarcia/miwifi-panel-frontend/releases"
+
+    async def async_install(self, version: str | None, backup: bool, **kwargs: Any) -> None:
+        """Install the latest version of the panel and reload it in Home Assistant."""
+        remote_version = await async_download_panel_if_needed(self._updater.hass)
+
+        # Re-registrar el panel para que use la nueva versión JS
+        await async_remove_miwifi_panel(self._updater.hass)
+        await async_register_panel(self._updater.hass, remote_version)
+
+        # Actualizar estado de la entidad
+        self._attr_installed_version = remote_version
+        self._attr_latest_version = remote_version
+        self._attr_available = False
+        self.async_write_ha_state()
+
+        # Mostrar notificación al usuario
+        pn.async_create(
+            self._updater.hass,
+            (
+                f"✅ MiWiFi Panel actualizado a la versión <b>{remote_version}</b>.<br>"
+                "Por favor, <b>refresca tu navegador (Ctrl+F5)</b> para ver los cambios."
+            ),
+            title="MiWiFi Panel actualizado",
+        )
+
+    async def async_release_notes(self) -> str | None:
+        """Show basic notes about the panel."""
+        return (
+            "<ha-alert alert-type='info'>"
+            "This panel is part of the custom MiWiFi integration. "
+            "It offers a visual overview of your network topology, device control, "
+            "and router stats. The update includes UI improvements, performance enhancements, and fixes.</ha-alert>"
+        )

@@ -104,9 +104,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         panel_enabled = await get_global_panel_state(hass)
         if panel_enabled:
             remote_version = await async_download_panel_if_needed(hass)
-            _LOGGER.warning(f"[MiWiFi] Versión remota detectada: {remote_version}")
+            _LOGGER.info(f"[MiWiFi] Versión remota detectada: {remote_version}")
             await async_register_panel(hass, remote_version)
-            _LOGGER.warning(f"[MiWiFi] Registrando panel con versión: {version}")
+            _LOGGER.info(f"[MiWiFi] Registrando panel con versión: {remote_version}")
         else:
             await async_remove_miwifi_panel(hass)
     except Exception as e:
