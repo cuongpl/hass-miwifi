@@ -125,7 +125,12 @@ async def get_global_log_level(hass: HomeAssistant) -> str:
 
     store = Store(hass, 1, GLOBAL_LOG_STORE)
     data = await store.async_load()
-    _global_log_level_cache = data.get(CONF_LOG_LEVEL, DEFAULT_LOG_LEVEL) if data else DEFAULT_LOG_LEVEL
+    if not data:
+        await store.async_save({CONF_LOG_LEVEL: DEFAULT_LOG_LEVEL})
+        _global_log_level_cache = DEFAULT_LOG_LEVEL
+        return DEFAULT_LOG_LEVEL
+
+    _global_log_level_cache = data.get(CONF_LOG_LEVEL, DEFAULT_LOG_LEVEL)
     return _global_log_level_cache
 
 
@@ -145,7 +150,12 @@ async def get_global_panel_state(hass: HomeAssistant) -> bool:
 
     store = Store(hass, 1, GLOBAL_PANEL_STORE)
     data = await store.async_load()
-    _global_panel_state_cache = data.get("enabled", DEFAULT_ENABLE_PANEL) if data else DEFAULT_ENABLE_PANEL
+    if not data:
+        await store.async_save({"enabled": DEFAULT_ENABLE_PANEL})
+        _global_panel_state_cache = DEFAULT_ENABLE_PANEL
+        return DEFAULT_ENABLE_PANEL
+
+    _global_panel_state_cache = data.get("enabled", DEFAULT_ENABLE_PANEL)
     return _global_panel_state_cache
 
 

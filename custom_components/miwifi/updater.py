@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import asyncio
+import aiohttp
 import contextlib
 from .logger import _LOGGER
 from datetime import datetime, timedelta
 from functools import cached_property
 from typing import Any, Final
+from homeassistant.util import dt as dt_util
 
 import os
 import homeassistant.components.persistent_notification as pn
@@ -346,6 +348,17 @@ class LuciUpdater(DataUpdateCoordinator):
             await self._async_prepare_new_status(self.data)
             
         await self._async_prepare_topo()
+
+        # Panel frontend version check (local + remote)
+        try:
+            from .frontend import read_local_version, read_remote_version
+            async with aiohttp.ClientSession() as session:
+                local = await read_local_version(self.hass)
+                remote = await read_remote_version(session)
+                self.data["panel_local_version"] = local
+                self.data["panel_remote_version"] = remote
+        except Exception as e:
+            _LOGGER.warning("[MiWiFi] No se pudo actualizar la versión del panel frontend: %s", e)
 
         return self.data
 

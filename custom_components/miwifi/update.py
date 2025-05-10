@@ -7,6 +7,8 @@ import aiohttp
 from .logger import _LOGGER
 from typing import Any, Final
 from datetime import datetime
+from homeassistant.util import dt as dt_util
+
 
 from homeassistant.components.update import (
     ATTR_IN_PROGRESS,
@@ -110,26 +112,13 @@ async def async_setup_entry(
     ]
 
     if updater.data.get("topo_graph", {}).get("show") == 1:
-        async with aiohttp.ClientSession() as session:
-            try:
-                local_version = await read_local_version(hass)
-                remote_version = await read_remote_version(session)
-
-                if remote_version != "0.0":
-                    _LOGGER.debug(f"[MiWiFi] Panel version check → local={local_version}, remote={remote_version}")
-                    panel_entity = MiWifiPanelUpdate(
-                        "miwifi_panel_global",
-                        updater,
-                        local_version,
-                        remote_version,
-                    )
-                    
-                    panel_entity._attr_device_info = updater.device_info
-                    entities.append(panel_entity)
-            except Exception as e:
-                _LOGGER.warning(f"[MiWiFi] No se pudo comprobar la versión del panel: {e}")
+        try:
+            panel_entity = MiWifiPanelUpdate(f"{config_entry.entry_id}_miwifi_panel", updater)
+            entities.append(panel_entity)
+        except Exception as e:
+            _LOGGER.warning(f"[MiWiFi] No se pudo crear la entidad update del panel: {e}")
     else:
-        _LOGGER.debug(f"[MiWiFi] Panel update entity no creada porque este router no es el principal.")
+        _LOGGER.debug("[MiWiFi] Panel update entity no creada porque este router no es el principal.")
 
     if entities:
         async_add_entities(entities)
@@ -215,9 +204,7 @@ class MiWifiUpdate(MiWifiEntity, UpdateEntity):
 from homeassistant.helpers.entity import DeviceInfo
 
 class MiWifiPanelUpdate(MiWifiEntity, UpdateEntity):
-    _remote_version: str
-
-    def __init__(self, unique_id: str, updater: LuciUpdater, local_version: str, remote_version: str) -> None:
+    def __init__(self, unique_id: str, updater) -> None:
         description = UpdateEntityDescription(
             key="miwifi_panel",
             name="MiWiFi Panel Frontend",
@@ -226,24 +213,40 @@ class MiWifiPanelUpdate(MiWifiEntity, UpdateEntity):
             entity_registry_enabled_default=True,
         )
         super().__init__(unique_id, description, updater, ENTITY_ID_FORMAT)
+
         self._attr_translation_key = "panel_title"
         self._attr_supported_features = UpdateEntityFeature.INSTALL | UpdateEntityFeature.RELEASE_NOTES
-        self._attr_installed_version = local_version
-        self._attr_latest_version = remote_version
-        self._attr_available = local_version != remote_version
-        self._remote_version = remote_version
+        self._attr_should_poll = False
 
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, updater.data.get("mac", "miwifi_panel"))},
             name="MiWiFi Panel",
             manufacturer="Xiaomi",
             model="Panel Frontend",
-            sw_version=local_version,
         )
 
-    @property
-    def title(self) -> str | None:
-        return "MiWiFi Panel Frontend"
+    def _update_from_coordinator_data(self) -> None:
+        local = self._updater.data.get("panel_local_version", "0.0")
+        remote = self._updater.data.get("panel_remote_version", "0.0")
+
+        self._attr_installed_version = local
+        self._attr_latest_version = remote
+        self._attr_available = local != remote
+
+    def _handle_coordinator_update(self) -> None:
+        prev_local = self._attr_installed_version
+        prev_remote = self._attr_latest_version
+
+        self._update_from_coordinator_data()
+
+        if (
+            prev_local != self._attr_installed_version
+            or prev_remote != self._attr_latest_version
+        ):
+            _LOGGER.info(
+                f"[MiWiFi] Panel update check → local: {self._attr_installed_version}, remote: {self._attr_latest_version}"
+            )
+            self.async_write_ha_state()
 
     @property
     def release_summary(self) -> str | None:
@@ -257,13 +260,31 @@ class MiWifiPanelUpdate(MiWifiEntity, UpdateEntity):
     def release_url(self) -> str | None:
         return "https://github.com/JuanManuelRomeroGarcia/miwifi-panel-frontend/releases"
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "last_checked": dt_util.now().isoformat(),
+        }
+        
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self._attr_installed_version != "0.0"
+            and self._attr_latest_version != "0.0"
+        )
+
+    
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._update_from_coordinator_data()
+        self.async_write_ha_state()
 
 
     async def async_release_notes(self) -> str | None:
-        hass = self._updater.hass
-        lang = hass.config.language
+        lang = self._updater.hass.config.language
         return (
-            hass.data.get("translations", {})
+            self._updater.hass.data.get("translations", {})
             .get(lang, {})
             .get("component", {})
             .get(DOMAIN, {})
@@ -271,44 +292,14 @@ class MiWifiPanelUpdate(MiWifiEntity, UpdateEntity):
             .get("release_notes", "")
         )
 
-    def _handle_coordinator_update(self) -> None:
-        self._attr_available = self._attr_installed_version != self._attr_latest_version
-        self.async_write_ha_state()
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return {
-            "last_checked": datetime.now().isoformat(),
-        }
-
-    @property
-    def available(self) -> bool:
-        """Return availability based on panel version file."""
-        from .frontend import read_local_version
-        try:
-            return self._attr_installed_version != "0.0"
-        except Exception:
-            return False
-
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        from .frontend import read_local_version
-        try:
-            new_local_version = await read_local_version(self._updater.hass)
-            self._attr_installed_version = new_local_version
-            self._attr_available = new_local_version != self._attr_latest_version
-            self.async_write_ha_state()
-        except Exception as e:
-            _LOGGER.warning(f"[MiWiFi] Error reading local panel version on startup: {e}")
-
-
     async def async_install(self, version: str | None, backup: bool, **kwargs: Any) -> None:
+        from .frontend import async_download_panel_if_needed, async_register_panel, read_local_version
+
         hass = self._updater.hass
+
         remote_version = await async_download_panel_if_needed(hass)
         await async_register_panel(hass, remote_version)
 
-        from .frontend import read_local_version
         new_local_version = await read_local_version(hass)
 
         self._attr_installed_version = new_local_version
@@ -320,12 +311,11 @@ class MiWifiPanelUpdate(MiWifiEntity, UpdateEntity):
 
         await asyncio.sleep(1.5)
         self.async_write_ha_state()
+        self._attr_available = True
 
-        # Notificación
-        lang = hass.config.language
         translations = (
             hass.data.get("translations", {})
-            .get(lang, {})
+            .get(hass.config.language, {})
             .get("component", {})
             .get(DOMAIN, {})
             .get("panel_update", {})
@@ -334,7 +324,7 @@ class MiWifiPanelUpdate(MiWifiEntity, UpdateEntity):
         title = translations.get("update_title", "MiWiFi Panel Updated")
         message_template = translations.get(
             "update_message",
-            "✅ MiWiFi Panel has been updated to version <b>{version}</b>.<br>Please <b>refresh your browser (Ctrl+F5)</b> to see the changes.",
+            "✅ MiWiFi Panel has been updated to version <b>{version}</b>.<br>Please <b>refresh your browser (Ctrl+F5)</b> to see the changes."
         )
         message = message_template.replace("{version}", remote_version)
 

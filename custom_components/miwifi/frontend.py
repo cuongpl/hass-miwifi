@@ -14,6 +14,7 @@ from .const import (
     PANEL_REPO_BASE_URL,
     PANEL_LOCAL_PATH,
     PANEL_STORAGE_FILE,
+    DEFAULT_PANEL_VERSION  
 )
 from .logger import _LOGGER
 
@@ -63,23 +64,24 @@ async def read_remote_files(session: aiohttp.ClientSession) -> list:
         return data.get("files", [])
 
 
-async def read_local_version(hass: HomeAssistant) -> str:
-    path = hass.config.path(PANEL_STORAGE_FILE)
-    if not os.path.exists(path):
-        return "0.0"
-    return await hass.async_add_executor_job(_read_json_file, path)
-
-
 def _read_json_file(path: str) -> str:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
     return data.get("version", "0.0")
 
-
 async def save_local_version(hass: HomeAssistant, version: str) -> None:
     path = hass.config.path(PANEL_STORAGE_FILE)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     await hass.async_add_executor_job(_write_json_file, path, {"version": version})
+
+async def read_local_version(hass: HomeAssistant) -> str:
+    path = hass.config.path(PANEL_STORAGE_FILE)
+    if not os.path.exists(path):
+        _LOGGER.debug(f"[MiWiFi] Panel version file not found. Creating default version {DEFAULT_PANEL_VERSION}.")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        await hass.async_add_executor_job(_write_json_file, path, {"version": DEFAULT_PANEL_VERSION})
+        return DEFAULT_PANEL_VERSION
+    return await hass.async_add_executor_job(_read_json_file, path)
 
 
 def _write_json_file(path: str, data: dict) -> None:
@@ -117,7 +119,7 @@ async def download_panel_files(hass: HomeAssistant, session: aiohttp.ClientSessi
                     continue
 
             await hass.async_add_executor_job(_write_binary_file, local_path, remote_content)
-            _LOGGER.info(f"[MiWiFi] Archivo actualizado: {file}")
+            _LOGGER.debug(f"[MiWiFi] Archivo actualizado: {file}")
 
 
 def _read_binary_file(path: str) -> bytes:
