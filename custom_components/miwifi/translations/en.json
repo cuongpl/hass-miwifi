@@ -55,5 +55,11 @@
     "info": {
       "version": "Version"
     }
+  },
+  "panel_update": {
+    "title": "MiWiFi Panel",
+    "update_title": "MiWiFi Panel Updated",
+    "update_message": "✅ MiWiFi Panel has been updated to version <b>{version}</b>.<br>Please <b>refresh your browser (Ctrl+F5)</b> to see the changes.",
+    "release_notes": "This panel is part of the custom MiWiFi integration. It offers a visual overview of your network topology, device control, and router stats. The update includes UI improvements, performance enhancements, and fixes."
   }
 }

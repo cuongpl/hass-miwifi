@@ -58,6 +58,12 @@
     "info": {
       "version": "Versão"
     }
+  },
+  "panel_update": {
+    "title": "Painel MiWiFi",
+    "update_title": "Painel MiWiFi atualizado",
+    "update_message": "✅ O Painel MiWiFi foi atualizado para a versão <b>{version}</b>.<br>Por favor, <b>atualize seu navegador (Ctrl+F5)</b> para ver as mudanças.",
+    "release_notes": "Este painel faz parte da integração personalizada MiWiFi. Ele oferece uma visão visual da topologia da rede, controle de dispositivos e estatísticas do roteador. A atualização inclui melhorias na interface, desempenho e correções de bugs."
   }
 }
   

@@ -6,6 +6,7 @@ import aiohttp
 
 from homeassistant.core import HomeAssistant
 from homeassistant.components.frontend import async_register_built_in_panel, async_remove_panel
+from homeassistant.components.frontend import DATA_PANELS, Panel
 
 from .const import (
     PANEL_REPO_VERSION_URL,
@@ -19,6 +20,10 @@ from .logger import _LOGGER
 
 async def async_download_panel_if_needed(hass: HomeAssistant) -> str:
     """Check and download panel if needed. Return the version."""
+    if hass.data.get("_miwifi_panel_updating"):
+        return await read_local_version(hass)
+
+    hass.data["_miwifi_panel_updating"] = True
     async with aiohttp.ClientSession() as session:
         try:
             remote_version = await read_remote_version(session)
@@ -33,10 +38,12 @@ async def async_download_panel_if_needed(hass: HomeAssistant) -> str:
                 await download_panel_files(hass, session, remote_version)
 
             return remote_version
-
         except Exception as e:
             _LOGGER.error(f"[MiWiFi] Error al verificar/descargar el panel frontend: {e}")
             return "0.0"
+        finally:
+            hass.data["_miwifi_panel_updating"] = False
+
 
 
 async def read_remote_version(session: aiohttp.ClientSession) -> str:
@@ -122,13 +129,26 @@ def _write_binary_file(path: str, content: bytes) -> None:
     with open(path, "wb") as f:
         f.write(content)
 
-
 async def async_register_panel(hass: HomeAssistant, version: str) -> None:
-    """Register the MiWiFi panel in Home Assistant."""
-    try:
-        await async_remove_panel(hass, "miwifi")
-    except Exception:
-        pass
+    """Register the MiWiFi panel in Home Assistant, only once if needed."""
+    panel_data = hass.data.get(DATA_PANELS, {}).get("miwifi")
+    if isinstance(panel_data, Panel):
+        config = getattr(panel_data, "config", {})
+        current_url = config.get("_panel_custom", {}).get("module_url", "")
+        expected_url = f"/local/miwifi/panel-frontend.js?v={version}"
+
+        if current_url == expected_url:
+            _LOGGER.debug("[MiWiFi] El panel ya está registrado con la versión actual.")
+            return
+
+    if panel_data is not None:
+        try:
+            await async_remove_panel(hass, "miwifi")
+            _LOGGER.debug("[MiWiFi] Panel 'miwifi' eliminado antes de registrar uno nuevo.")
+        except Exception as e:
+            _LOGGER.debug(f"[MiWiFi] No se pudo eliminar el panel: {e}")
+    else:
+        _LOGGER.debug("[MiWiFi] El panel 'miwifi' no estaba registrado, se omite eliminación.")
 
     async_register_built_in_panel(
         hass,
@@ -146,12 +166,21 @@ async def async_register_panel(hass: HomeAssistant, version: str) -> None:
         },
         require_admin=True,
     )
-    _LOGGER.info("[MiWiFi] Panel registrado con éxito.")
+    _LOGGER.info(f"[MiWiFi] Panel registrado con éxito con versión: {version}")
+
+
 
 
 async def async_remove_miwifi_panel(hass: HomeAssistant) -> None:
+    """Remove the MiWiFi panel if it exists."""
+    panels = hass.data.get(DATA_PANELS)
+
+    if not panels or "miwifi" not in panels:
+        _LOGGER.debug("[MiWiFi] Panel 'miwifi' not registered — skipping removal.")
+        return
+
     try:
         await async_remove_panel(hass, "miwifi")
         _LOGGER.info("[MiWiFi] Panel eliminado correctamente.")
     except Exception as e:
-        _LOGGER.debug(f"[MiWiFi] El panel no estaba registrado: {e}")
+        _LOGGER.debug(f"[MiWiFi] Error al eliminar el panel: {e}")

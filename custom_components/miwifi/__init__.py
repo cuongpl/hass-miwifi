@@ -51,6 +51,7 @@ from .frontend import (
     async_download_panel_if_needed,
     async_register_panel,
     async_remove_miwifi_panel,
+    read_local_version
 )
 
 
@@ -95,24 +96,21 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async_start_discovery(hass)
 
-    # Configuración del nivel de log
+    # Config level log
     log_level = await get_global_log_level(hass)
     _LOGGER.setLevel(getattr(logging, log_level.upper(), logging.WARNING))
 
-    # Configuración del panel
+    # Config panel Frontend
     try:
         panel_enabled = await get_global_panel_state(hass)
         if panel_enabled:
-            remote_version = await async_download_panel_if_needed(hass)
-            _LOGGER.info(f"[MiWiFi] Versión remota detectada: {remote_version}")
-            await async_register_panel(hass, remote_version)
-            _LOGGER.info(f"[MiWiFi] Registrando panel con versión: {remote_version}")
+            local_version = await read_local_version(hass)
+            await async_register_panel(hass, local_version)
         else:
             await async_remove_miwifi_panel(hass)
     except Exception as e:
         _LOGGER.warning(f"[MiWiFi] Error gestionando el panel: {e}")
 
-    # Si es una nueva entrada, limpiar options
     is_new = get_config_value(entry, OPTION_IS_FROM_FLOW, False)
     if is_new:
         hass.config_entries.async_update_entry(entry, data=entry.data, options={})
@@ -173,8 +171,8 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     try:
         panel_enabled = await get_global_panel_state(hass)
         if panel_enabled:
-            remote_version = await async_download_panel_if_needed(hass)
-            await async_register_panel(hass, remote_version)
+            local_version = await read_local_version(hass)
+            await async_register_panel(hass, local_version)
         else:
             await async_remove_miwifi_panel(hass)
     except Exception as e:

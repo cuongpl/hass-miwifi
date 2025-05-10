@@ -52,5 +52,11 @@
     "info": {
       "version": "Ausführung"
     }
+  },
+  "panel_update": {
+    "title": "MiWiFi-Panel",
+    "update_title": "MiWiFi-Panel aktualisiert",
+    "update_message": "✅ Das MiWiFi-Panel wurde auf Version <b>{version}</b> aktualisiert.<br>Bitte <b>aktualisiere deinen Browser (Strg+F5)</b>, um die Änderungen zu sehen.",
+    "release_notes": "Dieses Panel ist Teil der benutzerdefinierten MiWiFi-Integration. Es bietet eine visuelle Übersicht über die Netzwerktopologie, Gerätesteuerung und Routerstatistiken. Das Update enthält Verbesserungen an der Benutzeroberfläche, Leistungsverbesserungen und Fehlerbehebungen."
   }
 }

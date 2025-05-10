@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from .logger import _LOGGER
 from enum import Enum
 from typing import Any, Final
@@ -223,45 +225,11 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up MiWifi sensor entry.
+    """Set up MiWiFi sensors without blocking startup."""
+    hass.async_create_task(
+        _async_add_all_sensors_later(hass, config_entry, async_add_entities)
+    )
 
-    :param hass: HomeAssistant: Home Assistant object
-    :param config_entry: ConfigEntry: ConfigEntry object
-    :param async_add_entities: AddEntitiesCallback: AddEntitiesCallback callback object
-    """
-
-    updater: LuciUpdater = async_get_updater(hass, config_entry.entry_id)
-
-    entities: list[MiWifiSensor] = []
-    for description in MIWIFI_SENSORS:
-        if (
-            description.key == ATTR_SENSOR_DEVICES_5_0_GAME
-            and not updater.supports_game
-        ):
-            continue
-
-        if (
-            description.key in DISABLE_ZERO
-            and updater.data.get(description.key, 0) == 0
-        ):
-            continue
-
-        if description.key in ONLY_WAN and not updater.supports_wan:
-            continue
-
-        entities.append(
-            MiWifiSensor(
-                f"{config_entry.entry_id}-{description.key}",
-                description,
-                updater,
-            )
-        )
-
-    async_add_entities([
-        MiWifiTopologyGraphSensor(updater),
-        MiWifiConfigSensor(updater), 
-    ])
-    async_add_entities(entities)
 
 
 from .const import (
@@ -368,44 +336,90 @@ from homeassistant.helpers.entity import Entity
 from .const import CONF_ENABLE_PANEL, CONF_WAN_SPEED_UNIT, CONF_LOG_LEVEL
 from .helper import get_global_log_level
 from .logger import _LOGGER
+from datetime import datetime
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-class MiWifiConfigSensor(Entity):
+class MiWifiConfigSensor(CoordinatorEntity, SensorEntity):
     """Sensor que expone la configuración actual como atributos."""
 
     def __init__(self, updater: LuciUpdater) -> None:
+        super().__init__(updater)
         self._updater = updater
         self._attr_name = "MiWiFi Config"
         self._attr_unique_id = f"{updater.entry_id}_config"
         self._attr_icon = "mdi:cog"
-        self._attr_should_poll = True  # ← importante para permitir actualización manual
+        self._attr_should_poll = False
         self._attr_native_value = "ok"
         self._extra_attrs: dict[str, Any] = {}
 
     @property
-    def state(self):
+    def state(self) -> str:
         return self._attr_native_value
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
         return self._extra_attrs
 
-    async def async_added_to_hass(self):
-        """Se ejecuta cuando la entidad se agrega a HA."""
-        await self.async_update()
-        self.async_write_ha_state()
+    async def async_added_to_hass(self) -> None:
+        """Se ejecuta al agregar la entidad a Home Assistant."""
+        await super().async_added_to_hass()
+        await self._update_attrs()
+        self._unsub_coordinator_update = self._updater.async_add_listener(self._handle_coordinator_update)
 
-    async def async_update(self):
-        """Actualizar atributos al iniciar o al hacer update_entity."""
+    def _handle_coordinator_update(self) -> None:
+        self.hass.async_create_task(self._update_attrs())
+
+    async def _update_attrs(self) -> None:
         from .helper import get_global_log_level
         from .frontend import read_local_version
 
         log_level = await get_global_log_level(self._updater.hass)
-        config = self._updater.config_entry.options
         panel_version = await read_local_version(self._updater.hass)
+        config = self._updater.config_entry.options
 
         self._extra_attrs = {
-            "panel_activo": config.get(CONF_ENABLE_PANEL, True),
-            "speed_unit": config.get(CONF_WAN_SPEED_UNIT, "MB"),
+            "panel_activo": config.get("enable_panel", True),
+            "speed_unit": config.get("wan_speed_unit", "MB"),
             "log_level": log_level,
             "panel_version": panel_version,
+            "last_checked": datetime.now().isoformat(),
         }
+
+        self.async_write_ha_state()
+
+
+async def _async_add_all_sensors_later(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Add all MiWiFi sensors asynchronously to avoid blocking startup."""
+
+    await asyncio.sleep(0)
+
+    updater: LuciUpdater = async_get_updater(hass, config_entry.entry_id)
+
+    entities: list[SensorEntity] = [
+        MiWifiTopologyGraphSensor(updater),
+        MiWifiConfigSensor(updater),
+    ]
+
+    for description in MIWIFI_SENSORS:
+        if description.key == ATTR_SENSOR_DEVICES_5_0_GAME and not updater.supports_game:
+            continue
+
+        if description.key in DISABLE_ZERO and updater.data.get(description.key, 0) == 0:
+            continue
+
+        if description.key in ONLY_WAN and not updater.supports_wan:
+            continue
+
+        entities.append(
+            MiWifiSensor(
+                f"{config_entry.entry_id}-{description.key}",
+                description,
+                updater,
+            )
+        )
+
+    async_add_entities(entities)

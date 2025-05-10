@@ -55,5 +55,11 @@
     "info": {
       "version": "Sürüm"
     }
+  },
+  "panel_update": {
+    "title": "MiWiFi Paneli",
+    "update_title": "MiWiFi Paneli güncellendi",
+    "update_message": "✅ MiWiFi Paneli <b>{version}</b> sürümüne güncellendi.<br>Değişiklikleri görmek için lütfen <b>tarayıcınızı yenileyin (Ctrl+F5)</b>.",
+    "release_notes": "Bu panel, özel MiWiFi entegrasyonunun bir parçasıdır. Ağ topolojisinin görsel bir görünümünü, cihaz kontrolünü ve yönlendirici istatistiklerini sunar. Güncelleme, arayüz geliştirmeleri, performans iyileştirmeleri ve hata düzeltmeleri içerir."
   }
 }
