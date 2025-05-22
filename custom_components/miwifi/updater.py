@@ -1359,6 +1359,12 @@ class LuciUpdater(DataUpdateCoordinator):
             if self.data.get(ATTR_DEVICE_MAC_ADDRESS):
                 topo_data["graph"]["mac"] = self.data[ATTR_DEVICE_MAC_ADDRESS]
                 _LOGGER.debug("[MiWiFi] MAC añadida a topo_graph: %s", topo_data["graph"]["mac"])
+                
+                if topo_data["graph"].get("show") == 1 and topo_data["graph"].get("assoc") == 1:
+                    topo_data["graph"]["is_main"] = True
+                    _LOGGER.debug("[MiWiFi] Este router se ha marcado como nodo principal (is_main=True)")
+                else:
+                    topo_data["graph"]["is_main"] = False
 
             self.data["topo_graph"] = topo_data
             _LOGGER.debug("[MiWiFi] Topology graph data received for router at %s: %s", self.ip, topo_data)

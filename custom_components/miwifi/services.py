@@ -169,11 +169,38 @@ class MiWifiGetTopologyGraphServiceCall(MiWifiServiceCall):
             _LOGGER.info("[MiWiFi] Topology graph retrieved successfully: %s", updater.data["topo_graph"])
         else:
             _LOGGER.warning("[MiWiFi] Topology graph could not be retrieved or is empty.")
+            
+class MiWifiLogPanelServiceCall:
+    """Log messages sent from the frontend panel."""
+
+    schema = vol.Schema({
+        vol.Required("level"): vol.In(["debug", "info", "warning", "error"]),
+        vol.Required("message"): str,
+    })
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self.hass = hass
+
+    async def async_call_service(self, service: ServiceCall) -> None:
+        level = service.data.get("level", "info")
+        message = service.data.get("message", "")
+
+        if level == "debug":
+            _LOGGER.debug("[PanelJS] %s", message)
+        elif level == "warning":
+            _LOGGER.warning("[PanelJS] %s", message)
+        elif level == "error":
+            _LOGGER.error("[PanelJS] %s", message)
+        else:
+            _LOGGER.info("[PanelJS] %s", message)
+
 
 
 SERVICES: Final = (
     (SERVICE_CALC_PASSWD, MiWifiCalcPasswdServiceCall),
     (SERVICE_REQUEST, MiWifiRequestServiceCall),
     ("get_topology_graph", MiWifiGetTopologyGraphServiceCall),
+    ("log_panel", MiWifiLogPanelServiceCall),
+
 )
 
