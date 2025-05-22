@@ -1356,22 +1356,49 @@ class LuciUpdater(DataUpdateCoordinator):
                 self.data["topo_graph"] = None
                 return
 
+            graph = topo_data["graph"]
+
             if self.data.get(ATTR_DEVICE_MAC_ADDRESS):
-                topo_data["graph"]["mac"] = self.data[ATTR_DEVICE_MAC_ADDRESS]
-                _LOGGER.debug("[MiWiFi] MAC añadida a topo_graph: %s", topo_data["graph"]["mac"])
-                
-                if topo_data["graph"].get("show") == 1 and topo_data["graph"].get("assoc") == 1:
-                    topo_data["graph"]["is_main"] = True
-                    _LOGGER.debug("[MiWiFi] Este router se ha marcado como nodo principal (is_main=True)")
+                graph["mac"] = self.data[ATTR_DEVICE_MAC_ADDRESS]
+                _LOGGER.debug("[MiWiFi] MAC añadida a topo_graph: %s", graph["mac"])
+
+            try:
+                show = int(topo_data.get("show", -1))  # 👈 CORRECTO: obtenemos el show real
+                mode = int(graph.get("mode", -1))
+                assoc = graph.get("assoc", None)
+
+                _LOGGER.debug("[MiWiFi] Topo debug – show=%s, mode=%s, assoc=%s", show, mode, assoc)
+
+                if assoc is not None:
+                    assoc = int(assoc)
+                    if show == 1 and assoc == 1:
+                        graph["is_main"] = True
+                        _LOGGER.debug("[MiWiFi] Nodo marcado como principal por show + assoc: %s", graph.get("name"))
+                    else:
+                        graph["is_main"] = False
+                        _LOGGER.debug("[MiWiFi] Nodo NO marcado como principal por show + assoc: %s", graph.get("name"))
+                elif show == 1 and mode in (0, 4):
+                    graph["is_main"] = True
+                    _LOGGER.debug("[MiWiFi] Nodo marcado como principal por show + mode (sin assoc): %s", graph.get("name"))
                 else:
-                    topo_data["graph"]["is_main"] = False
+                    graph["is_main"] = False
+                    _LOGGER.debug("[MiWiFi] Nodo NO marcado como principal: %s", graph.get("name"))
+
+            except Exception as e:
+                graph["is_main"] = False
+                _LOGGER.warning("[MiWiFi] Error al interpretar topología para determinar nodo principal: %s", e)
+
+            except Exception as e:
+                graph["is_main"] = False
+                _LOGGER.warning("[MiWiFi] Error al interpretar topología para determinar nodo principal: %s", e)
+
 
             self.data["topo_graph"] = topo_data
             _LOGGER.debug("[MiWiFi] Topology graph data received for router at %s: %s", self.ip, topo_data)
 
             # 🔍 Detectar nodos mesh nuevos
-            if "nodes" in topo_data.get("graph", {}):
-                for node in topo_data["graph"]["nodes"]:
+            if "nodes" in graph:
+                for node in graph["nodes"]:
                     node_ip = node.get("ip")
                     node_mac = node.get("mac")
 
@@ -1397,7 +1424,6 @@ class LuciUpdater(DataUpdateCoordinator):
     def entry_id(self) -> str | None:
         """Return the config entry ID."""
         return self._entry_id
-
 
 @callback
 def async_get_integrations(hass: HomeAssistant) -> dict[str, dict]:
