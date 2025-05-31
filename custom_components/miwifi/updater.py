@@ -20,6 +20,7 @@ from homeassistant.helpers import event
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.httpx_client import get_async_client
 from homeassistant.helpers.storage import Store, STORAGE_DIR
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -1351,74 +1352,99 @@ class LuciUpdater(DataUpdateCoordinator):
         try:
             topo_data = await self.luci.topo_graph()
 
-            if not topo_data or "graph" not in topo_data:
+            if not topo_data or not isinstance(topo_data, dict) or "graph" not in topo_data:
                 _LOGGER.info("[MiWiFi] No topology graph data available for router at %s", self.ip)
                 self.data["topo_graph"] = None
                 return
 
             graph = topo_data["graph"]
 
+            if not isinstance(graph, dict):
+                _LOGGER.error("[MiWiFi] ❌ Invalid topology graph format (not dict): %s", graph)
+                self.data["topo_graph"] = None
+                return
+
             if self.data.get(ATTR_DEVICE_MAC_ADDRESS):
                 graph["mac"] = self.data[ATTR_DEVICE_MAC_ADDRESS]
                 _LOGGER.debug("[MiWiFi] MAC añadida a topo_graph: %s", graph["mac"])
 
+            # Detección automática de principal
+            auto_main = False
             try:
-                show = int(topo_data.get("show", -1))  # 👈 CORRECTO: obtenemos el show real
+                show = int(topo_data.get("show", -1))
                 mode = int(graph.get("mode", -1))
                 assoc = graph.get("assoc", None)
-
                 _LOGGER.debug("[MiWiFi] Topo debug – show=%s, mode=%s, assoc=%s", show, mode, assoc)
 
                 if assoc is not None:
                     assoc = int(assoc)
                     if show == 1 and assoc == 1:
                         graph["is_main"] = True
-                        _LOGGER.debug("[MiWiFi] Nodo marcado como principal por show + assoc: %s", graph.get("name"))
-                    else:
-                        graph["is_main"] = False
-                        _LOGGER.debug("[MiWiFi] Nodo NO marcado como principal por show + assoc: %s", graph.get("name"))
+                        auto_main = True
                 elif show == 1 and mode in (0, 4):
                     graph["is_main"] = True
-                    _LOGGER.debug("[MiWiFi] Nodo marcado como principal por show + mode (sin assoc): %s", graph.get("name"))
+                    auto_main = True
+            except Exception as e:
+                _LOGGER.warning("[MiWiFi] Error al interpretar topología: %s", e)
+
+            # Restaurar selección manual si no hay automático
+            if not auto_main:
+                from custom_components.miwifi.frontend import async_load_manual_main_mac
+                manual_mac = await async_load_manual_main_mac(self.hass)
+                if manual_mac:
+                    if manual_mac == graph.get("mac"):
+                        graph["is_main"] = True
+                        _LOGGER.info("[MiWiFi] Main router restored from saved MAC: %s", manual_mac)
+                    else:
+                        graph.pop("is_main", None)
                 else:
-                    graph["is_main"] = False
-                    _LOGGER.debug("[MiWiFi] Nodo NO marcado como principal: %s", graph.get("name"))
-
-            except Exception as e:
-                graph["is_main"] = False
-                _LOGGER.warning("[MiWiFi] Error al interpretar topología para determinar nodo principal: %s", e)
-
-            except Exception as e:
-                graph["is_main"] = False
-                _LOGGER.warning("[MiWiFi] Error al interpretar topología para determinar nodo principal: %s", e)
-
+                    graph.pop("is_main", None)
+                    _LOGGER.debug("[MiWiFi] No manual MAC found, removed is_main from graph")
+            else:
+                graph["is_main"] = True
 
             self.data["topo_graph"] = topo_data
             _LOGGER.debug("[MiWiFi] Topology graph data received for router at %s: %s", self.ip, topo_data)
 
-            # 🔍 Detectar nodos mesh nuevos
-            if "nodes" in graph:
-                for node in graph["nodes"]:
-                    node_ip = node.get("ip")
-                    node_mac = node.get("mac")
+            # 🔄 Actualizar estado del sensor recreando completamente los atributos
+            for entity in self.hass.states.async_all("sensor"):
+                if entity.entity_id.startswith("sensor.topologia_miwifi"):
+                    g = entity.attributes.get("graph", {})
+                    if g.get("mac") == graph.get("mac"):
+                        clean_attributes = {
+                            "graph": dict(graph),
+                            "code": entity.attributes.get("code", 0),
+                            "icon": entity.attributes.get("icon", "mdi:network"),
+                            "friendly_name": entity.attributes.get("friendly_name", "Topología MiWiFi"),
+                        }
+                        self.hass.states.async_set(entity.entity_id, entity.state, clean_attributes)
+                        _LOGGER.debug("[MiWiFi] 🔄 Sensor %s actualizado con graph limpio", entity.entity_id)
 
-                    if not node_ip or node_ip == self.ip:
-                        continue
+            # Forzar también actualización al coordinator
+            try:
+                self.async_set_updated_data(self.data)
+            except AttributeError:
+                _LOGGER.debug("[MiWiFi] Coordinator no disponible para router %s", self.ip)
 
-                    if node_ip not in self.hass.data.get(DOMAIN, {}):
-                        _LOGGER.warning(
-                            "[MiWiFi] 🆕 Nodo Mesh detectado pero no integrado: IP=%s, MAC=%s",
-                            node_ip,
-                            node_mac,
-                        )
+            # Nodo mesh (sin cambios)
+            nodes = graph.get("nodes")
+            if isinstance(nodes, list):
+                for node in nodes:
+                    if isinstance(node, dict):
+                        node_ip = node.get("ip")
+                        node_mac = node.get("mac")
+                        if node_ip and node_ip != self.ip:
+                            if node_ip not in self.hass.data.get(DOMAIN, {}):
+                                _LOGGER.warning("[MiWiFi] 🆕 Nodo Mesh no integrado: IP=%s, MAC=%s", node_ip, node_mac)
 
-        except LuciError as err:
-            _LOGGER.warning("[MiWiFi] Failed to get topology graph for router at %s: %s", self.ip, err)
+        except LuciError as e:
+            _LOGGER.warning("[MiWiFi] Failed to get topology graph for router at %s: %s", self.ip, e)
             self.data["topo_graph"] = None
 
-        except Exception as err:
-            _LOGGER.error("[MiWiFi] Unexpected error while getting topology graph for router at %s: %s", self.ip, err)
+        except Exception as e:
+            _LOGGER.error("[MiWiFi] Unexpected error while getting topology graph for router at %s: %s", self.ip, e)
             self.data["topo_graph"] = None
+
 
     @property
     def entry_id(self) -> str | None:
@@ -1468,4 +1494,30 @@ def async_get_updater(hass: HomeAssistant, identifier: str) -> LuciUpdater:
         return integrations[0]
 
     raise ValueError(_error)
+
+
+async def async_update_panel_entity(hass: HomeAssistant, updater: LuciUpdater, async_add_entities=None):
+    """Handle dynamic creation/removal of panel update entity."""
+
+    entity_registry = er.async_get(hass)
+    mac = updater.data.get(ATTR_DEVICE_MAC_ADDRESS)
+    entity_id = f"update.miwifi_{mac.replace(':','_')}_miwifi_panel_frontend"
+
+    topo_graph = (updater.data or {}).get("topo_graph", {}).get("graph", {})
+    is_main = topo_graph.get("is_main")
+
+    entry = entity_registry.async_get(entity_id)
+
+    if is_main:
+        if not entry and async_add_entities:
+            _LOGGER.debug("[MiWiFi] 🟢 Creando update panel porque es ahora main")
+            panel_entity = MiWifiPanelUpdate(f"{updater.entry_id}_miwifi_panel", updater)
+            async_add_entities([panel_entity])
+        elif not entry:
+            _LOGGER.debug("[MiWiFi] ⚠ No puedo crear el update panel porque async_add_entities no está disponible")
+    else:
+        if entry:
+            _LOGGER.debug("[MiWiFi] 🔴 Eliminando update panel porque ya no es main")
+            entity_registry.async_remove(entity_id)
+
 

@@ -111,7 +111,14 @@ async def async_setup_entry(
         if description.key != ATTR_UPDATE_FIRMWARE or updater.supports_update
     ]
 
-    if updater.data.get("topo_graph", {}).get("show") == 1:
+    topo_graph = (updater.data or {}).get("topo_graph", {})
+
+    if not isinstance(topo_graph, dict):
+        topo_graph = {}
+
+    is_main = topo_graph.get("graph", {}).get("is_main", False)
+
+    if is_main:
         try:
             panel_entity = MiWifiPanelUpdate(f"{config_entry.entry_id}_miwifi_panel", updater)
             entities.append(panel_entity)

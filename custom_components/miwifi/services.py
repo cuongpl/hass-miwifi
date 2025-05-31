@@ -25,10 +25,11 @@ from .const import (
     NAME,
     SERVICE_CALC_PASSWD,
     SERVICE_REQUEST,
+    UPDATER,
 )
 from .exceptions import LuciError
-from .updater import LuciUpdater, async_get_updater
-
+from .updater import LuciUpdater, async_get_updater, async_update_panel_entity
+from .frontend import async_save_manual_main_mac , async_clear_manual_main_mac
 
 
 
@@ -194,6 +195,36 @@ class MiWifiLogPanelServiceCall:
         else:
             _LOGGER.info("[PanelJS] %s", message)
 
+from .updater import async_get_integrations
+
+class MiWifiSelectMainNodeServiceCall:
+    """Allow setting a router manually as main."""
+
+    schema = vol.Schema({vol.Required("mac"): str})
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self.hass = hass
+
+    async def async_call_service(self, service: ServiceCall) -> None:
+        selected_mac = service.data["mac"]
+        _LOGGER.info("[MiWiFi] 📥 Servicio 'select_main_router' invocado con MAC: %s", selected_mac)
+
+        integrations = async_get_integrations(self.hass)
+        routers = [entry[UPDATER] for entry in integrations.values()]
+
+        _LOGGER.debug("[MiWiFi] Routers detectados: %d", len(routers))
+
+        if selected_mac:
+            await async_save_manual_main_mac(self.hass, selected_mac)
+            _LOGGER.info("[MiWiFi] ✅ Manual MAC guardada correctamente: %s", selected_mac)
+        else:
+            await async_clear_manual_main_mac(self.hass)
+            _LOGGER.info("[MiWiFi] 🧹 Limpieza de selección manual de router principal.")
+
+        for router in routers:
+            await router._async_prepare_topo()
+            await async_update_panel_entity(self.hass, router)
+
 
 
 SERVICES: Final = (
@@ -201,6 +232,7 @@ SERVICES: Final = (
     (SERVICE_REQUEST, MiWifiRequestServiceCall),
     ("get_topology_graph", MiWifiGetTopologyGraphServiceCall),
     ("log_panel", MiWifiLogPanelServiceCall),
+    ("select_main_router", MiWifiSelectMainNodeServiceCall),
 
 )
 
