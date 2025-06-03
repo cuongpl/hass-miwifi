@@ -7,6 +7,7 @@ import asyncio
 import aiohttp
 import contextlib
 from .logger import _LOGGER
+from .unsupported import UNSUPPORTED
 from datetime import datetime, timedelta
 from functools import cached_property
 from typing import Any, Final
@@ -75,6 +76,8 @@ from .const import (
     ATTR_TRACKER_SIGNAL,
     ATTR_TRACKER_UP_SPEED,
     ATTR_TRACKER_UPDATER_ENTRY_ID,
+    ATTR_TRACKER_INTERNET_BLOCKED,
+    ATTR_TRACKER_FIRST_SEEN,
     ATTR_UPDATE_CURRENT_VERSION,
     ATTR_UPDATE_DOWNLOAD_URL,
     ATTR_UPDATE_FILE_HASH,
@@ -141,28 +144,6 @@ REPEATER_SKIP_ATTRS: Final = (
     ATTR_TRACKER_ONLINE,
     ATTR_TRACKER_OPTIONAL_MAC,
 )
-
-UNSUPPORTED: Final = {
-    "new_status": [
-        Model.R1D,
-        Model.R2D,
-        Model.R1CM,
-        Model.R1CL,
-        Model.R3P,
-        Model.R3D,
-        Model.R3L,
-        Model.R3A,
-        Model.R3,
-        Model.R3G,
-        Model.R4,
-        Model.R4A,
-        Model.R4AC,
-        Model.R4C,
-        Model.R4CM,
-        Model.D01,
-        Model.RN06,
-    ]
-}
 
 # pylint: disable=too-many-branches,too-many-lines,too-many-arguments
 class LuciUpdater(DataUpdateCoordinator):
@@ -349,7 +330,6 @@ class LuciUpdater(DataUpdateCoordinator):
             self._clean_devices()
 
         if "new_status" not in self.data:
-            #_LOGGER.warning("🔁 Forzando carga de new_status manualmente...")
             await self._async_prepare_new_status(self.data)
             
         await self._async_prepare_topo()
@@ -473,7 +453,6 @@ class LuciUpdater(DataUpdateCoordinator):
             and ATTR_DEVICE_MODEL in data
             and ATTR_DEVICE_MANUFACTURER in data
         ):
-            #_LOGGER.debug("⏳ Ejecutando init_info porque falta información básica del router")
             return
 
 
@@ -500,6 +479,13 @@ class LuciUpdater(DataUpdateCoordinator):
         if "hardware" in response:
             try:
                 data[ATTR_MODEL] = Model(response["hardware"].lower())
+                
+                
+                from .compatibility import CompatibilityChecker
+                checker = CompatibilityChecker(self.luci)
+                self.capabilities = await checker.run()
+                _LOGGER.info(f"[MiWiFi] Capabilities detected: {self.capabilities}")
+
             except ValueError as _e:
                 await async_self_check(self.hass, self.luci, response["hardware"])
 
@@ -509,6 +495,7 @@ class LuciUpdater(DataUpdateCoordinator):
                 self.code = codes.CONFLICT
 
             return
+
 
         pn.async_create(self.hass, f"Router {self.ip} not supported", NAME)
 
@@ -831,14 +818,24 @@ class LuciUpdater(DataUpdateCoordinator):
             ]
 
     async def _async_prepare_devices(self, data: dict) -> None:
-        """Prepare devices.
-
-        :param data: dict
-        """
+        """Prepare devices."""
 
         self.reset_counter()
 
         response: dict = await self.luci.wifi_connect_devices()
+
+        macfilter_info: dict = await self.luci.macfilter_info()
+        filter_macs: dict[str, int] = {}
+
+        for entry in macfilter_info.get("flist", []):
+            mac = entry.get("mac", "").upper()
+            wan = entry.get("authority", {}).get("wan", 1)
+            filter_macs[mac] = wan
+
+        for entry in macfilter_info.get("list", []):
+            mac = entry.get("mac", "").upper()
+            wan = entry.get("authority", {}).get("wan", 1)
+            filter_macs[mac] = wan
 
         if "list" in response:
             integrations: dict[str, dict] = {}
@@ -847,17 +844,17 @@ class LuciUpdater(DataUpdateCoordinator):
                 integrations = async_get_integrations(self.hass)
 
             for device in response["list"]:
-                # fmt: off
-                self._signals[device["mac"]] = device["signal"] \
-                    if "signal" in device else 0
-                # fmt: on
+                mac = device.get("mac", "").upper()
 
-                if device["mac"] in self.devices:
-                    # fmt: off
-                    self.devices[device["mac"]][ATTR_TRACKER_LAST_ACTIVITY] = datetime.now() \
-                        .replace(microsecond=0) \
-                        .isoformat()
-                    # fmt: on
+                self._signals[mac] = device["signal"] if "signal" in device else 0
+
+                if mac in self.devices:
+                    self.devices[mac][ATTR_TRACKER_LAST_ACTIVITY] = datetime.now().replace(microsecond=0).isoformat()
+
+                if mac in filter_macs:
+                    device[ATTR_TRACKER_INTERNET_BLOCKED] = (filter_macs[mac] == 0)
+                else:
+                    device[ATTR_TRACKER_INTERNET_BLOCKED] = False
 
                 if self.is_repeater and self.is_force_load:
                     device |= {
@@ -870,13 +867,15 @@ class LuciUpdater(DataUpdateCoordinator):
                         action = DeviceAction.SKIP
 
                     if ATTR_TRACKER_MAC in device:
+                        if "down_total" in device and "up_total" in device:
+                            device[ATTR_TRACKER_TOTAL_USAGE] = int(device.get("down_total", 0)) + int(device.get("up_total", 0))
+                        else:
+                            device[ATTR_TRACKER_TOTAL_USAGE] = None
+
                         self.add_device(device, action=action)
 
     async def _async_prepare_device_list(self, data: dict) -> None:
-        """Prepare device list
-
-        :param data: dict
-        """
+        """Prepare device list"""
 
         if self.is_repeater:
             return
@@ -886,13 +885,23 @@ class LuciUpdater(DataUpdateCoordinator):
         if "list" not in response or len(response["list"]) == 0:
             if len(self._signals) > 0 and not self.is_repeater:
                 self.reset_counter(is_remove=True)
-
                 data[ATTR_SENSOR_MODE] = Mode.MESH
-
                 if self.is_force_load:
                     await self._async_prepare_devices(data)
-
             return
+
+        macfilter_info: dict = await self.luci.macfilter_info()
+        filter_macs: dict[str, int] = {}
+
+        for entry in macfilter_info.get("flist", []):
+            mac = entry.get("mac", "").upper()
+            wan = entry.get("authority", {}).get("wan", 1)
+            filter_macs[mac] = wan
+
+        for entry in macfilter_info.get("list", []):
+            mac = entry.get("mac", "").upper()
+            wan = entry.get("authority", {}).get("wan", 1)
+            filter_macs[mac] = wan
 
         integrations: dict[str, dict] = async_get_integrations(self.hass)
 
@@ -933,10 +942,7 @@ class LuciUpdater(DataUpdateCoordinator):
                     if mac_to_ip[device["parent"]] not in add_to:
                         add_to[mac_to_ip[device["parent"]]] = {}
 
-                    add_to[mac_to_ip[device["parent"]]][device[ATTR_TRACKER_MAC]] = (
-                        device,
-                        action,
-                    )
+                    add_to[mac_to_ip[device["parent"]]][device[ATTR_TRACKER_MAC]] = (device, action)
 
                     if integration[UPDATER].is_force_load:
                         continue
@@ -948,9 +954,7 @@ class LuciUpdater(DataUpdateCoordinator):
                     and device[ATTR_TRACKER_MAC] in self._moved_devices
                 ):
                     device[ATTR_TRACKER_UPDATER_ENTRY_ID] = self._entry_id
-                    device[ATTR_TRACKER_ROUTER_MAC_ADDRESS] = (
-                        self.data.get(ATTR_DEVICE_MAC_ADDRESS, None),
-                    )
+                    device[ATTR_TRACKER_ROUTER_MAC_ADDRESS] = (self.data.get(ATTR_DEVICE_MAC_ADDRESS, None),)
 
                     if self._mass_update_device(device, integrations):
                         action = DeviceAction.SKIP
@@ -962,9 +966,14 @@ class LuciUpdater(DataUpdateCoordinator):
                 and device[ATTR_TRACKER_MAC] not in self._moved_devices
             ):
                 device[ATTR_TRACKER_UPDATER_ENTRY_ID] = self._entry_id
+                mac = device.get("mac", "").upper()
 
-                if ATTR_TRACKER_MAC in device:
-                    self.add_device(device, action=action, integrations=integrations)
+                if mac in filter_macs:
+                    device[ATTR_TRACKER_INTERNET_BLOCKED] = (filter_macs[mac] == 0)
+                else:
+                    device[ATTR_TRACKER_INTERNET_BLOCKED] = False
+
+                self.add_device(device, action=action, integrations=integrations)
 
         if not add_to:
             return
@@ -977,9 +986,8 @@ class LuciUpdater(DataUpdateCoordinator):
 
             for device in devices.values():
                 if ATTR_TRACKER_MAC in device[0]:
-                    integrations[_ip][UPDATER].add_device(
-                        device[0], True, device[1], integrations
-                    )
+                    integrations[_ip][UPDATER].add_device(device[0], True, device[1], integrations)
+
 
     async def _async_prepare_device_restore(self, data: dict) -> None:
         """Restore devices
@@ -1118,7 +1126,7 @@ class LuciUpdater(DataUpdateCoordinator):
                 self.hass, SIGNAL_NEW_DEVICE, self.devices[device[ATTR_TRACKER_MAC]]
             )
 
-            ##_LOGGER.debug("Found new device: %s", self.devices[device[ATTR_TRACKER_MAC]])
+            #_LOGGER.debug("Found new device: %s", self.devices[device[ATTR_TRACKER_MAC]])
             
         elif action == DeviceAction.MOVE:
             #_LOGGER.debug("Move device: %s", device[ATTR_TRACKER_MAC])
@@ -1140,12 +1148,6 @@ class LuciUpdater(DataUpdateCoordinator):
     def _build_device(
         self, device: dict, integrations: dict[str, Any] | None = None
     ) -> dict[str, Any]:
-        """Build device
-
-        :param device: dict
-        :param integrations: dict[str, Any]: Integrations list
-        :return dict[str, Any]
-        """
 
         ip_attr: dict | None = device["ip"][0] if "ip" in device and device["ip"] else None
 
@@ -1155,10 +1157,7 @@ class LuciUpdater(DataUpdateCoordinator):
         connection: Connection | None = None
 
         with contextlib.suppress(ValueError):
-            # fmt: off
-            connection = Connection(int(device["type"])) \
-                if "type" in device else None
-            # fmt: on
+            connection = Connection(int(device["type"])) if "type" in device else None
 
         return {
             ATTR_TRACKER_ENTRY_ID: device[ATTR_TRACKER_ENTRY_ID],
@@ -1169,36 +1168,20 @@ class LuciUpdater(DataUpdateCoordinator):
             ATTR_TRACKER_ROUTER_MAC_ADDRESS: self.data.get(
                 ATTR_DEVICE_MAC_ADDRESS, None
             ),
-            ATTR_TRACKER_SIGNAL: self._signals[device[ATTR_TRACKER_MAC]]
-            if device[ATTR_TRACKER_MAC] in self._signals
-            else None,
+            ATTR_TRACKER_SIGNAL: self._signals.get(device[ATTR_TRACKER_MAC]),
             ATTR_TRACKER_NAME: device.get("name", device[ATTR_TRACKER_MAC]),
             ATTR_TRACKER_IP: ip_attr["ip"] if ip_attr is not None else None,
             ATTR_TRACKER_CONNECTION: connection,
-            ATTR_TRACKER_DOWN_SPEED: float(ip_attr["downspeed"])
-            if ip_attr is not None
-            and "downspeed" in ip_attr
-            and float(ip_attr["downspeed"]) > 0
-            else 0.0,
-            ATTR_TRACKER_UP_SPEED: float(ip_attr["upspeed"])
-            if ip_attr is not None
-            and "upspeed" in ip_attr
-            and float(ip_attr["upspeed"]) > 0
-            else 0.0,
-            ATTR_TRACKER_ONLINE: str(
-                timedelta(seconds=int(ip_attr["online"] if ip_attr is not None else 0))
-            ),
-            ATTR_TRACKER_LAST_ACTIVITY: datetime.now()
-            .replace(microsecond=0)
-            .isoformat(),
-            ATTR_TRACKER_OPTIONAL_MAC: integrations[ip_attr["ip"]][UPDATER].data.get(
-                ATTR_DEVICE_MAC_ADDRESS, None
-            )
-            if integrations is not None
-            and ip_attr is not None
-            and ip_attr["ip"] in integrations
-            else None,
+            ATTR_TRACKER_DOWN_SPEED: float(ip_attr["downspeed"]) if ip_attr and "downspeed" in ip_attr else 0.0,
+            ATTR_TRACKER_UP_SPEED: float(ip_attr["upspeed"]) if ip_attr and "upspeed" in ip_attr else 0.0,
+            ATTR_TRACKER_ONLINE: str(timedelta(seconds=int(ip_attr["online"] if ip_attr else 0))),
+            ATTR_TRACKER_LAST_ACTIVITY: datetime.now().replace(microsecond=0).isoformat(),
+            ATTR_TRACKER_FIRST_SEEN: device.get(ATTR_TRACKER_FIRST_SEEN, datetime.now().replace(microsecond=0).isoformat()),
+            ATTR_TRACKER_OPTIONAL_MAC: integrations[ip_attr["ip"]][UPDATER].data.get(ATTR_DEVICE_MAC_ADDRESS, None)
+                if integrations and ip_attr and ip_attr["ip"] in integrations else None,
+            ATTR_TRACKER_INTERNET_BLOCKED: device.get(ATTR_TRACKER_INTERNET_BLOCKED, False),
         }
+
 
     def _mass_update_device(self, device: dict, integrations: dict) -> bool:
         """Mass update devices
@@ -1372,7 +1355,6 @@ class LuciUpdater(DataUpdateCoordinator):
                 graph["mac"] = self.data[ATTR_DEVICE_MAC_ADDRESS]
                 _LOGGER.debug("[MiWiFi] MAC añadida a topo_graph: %s", graph["mac"])
 
-            # Detección automática de principal
             auto_main = False
             try:
                 show = int(topo_data.get("show", -1))
@@ -1391,7 +1373,6 @@ class LuciUpdater(DataUpdateCoordinator):
             except Exception as e:
                 _LOGGER.warning("[MiWiFi] Error al interpretar topología: %s", e)
 
-            # Restaurar selección manual si no hay automático
             if not auto_main:
                 from custom_components.miwifi.frontend import async_load_manual_main_mac
                 manual_mac = await async_load_manual_main_mac(self.hass)
@@ -1410,7 +1391,6 @@ class LuciUpdater(DataUpdateCoordinator):
             self.data["topo_graph"] = topo_data
             _LOGGER.debug("[MiWiFi] Topology graph data received for router at %s: %s", self.ip, topo_data)
 
-            # 🔄 Actualizar estado del sensor recreando completamente los atributos
             for entity in self.hass.states.async_all("sensor"):
                 if entity.entity_id.startswith("sensor.topologia_miwifi"):
                     g = entity.attributes.get("graph", {})
@@ -1422,15 +1402,14 @@ class LuciUpdater(DataUpdateCoordinator):
                             "friendly_name": entity.attributes.get("friendly_name", "Topología MiWiFi"),
                         }
                         self.hass.states.async_set(entity.entity_id, entity.state, clean_attributes)
-                        _LOGGER.debug("[MiWiFi] 🔄 Sensor %s actualizado con graph limpio", entity.entity_id)
+                        #_LOGGER.debug("[MiWiFi] 🔄 Sensor %s actualizado con graph limpio", entity.entity_id)
 
-            # Forzar también actualización al coordinator
             try:
                 self.async_set_updated_data(self.data)
             except AttributeError:
-                _LOGGER.debug("[MiWiFi] Coordinator no disponible para router %s", self.ip)
-
-            # Nodo mesh (sin cambios)
+                #_LOGGER.debug("[MiWiFi] Coordinator no disponible para router %s", self.ip)
+                pass
+            
             nodes = graph.get("nodes")
             if isinstance(nodes, list):
                 for node in nodes:

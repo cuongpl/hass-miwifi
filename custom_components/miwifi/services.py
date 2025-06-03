@@ -12,7 +12,6 @@ from homeassistant.const import CONF_DEVICE_ID, CONF_IP_ADDRESS, CONF_TYPE
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import device_registry as dr
 
-
 from .const import (
     ATTR_DEVICE_HW_VERSION,
     ATTR_DEVICE_MAC_ADDRESS,
@@ -29,43 +28,25 @@ from .const import (
 )
 from .exceptions import LuciError
 from .updater import LuciUpdater, async_get_updater, async_update_panel_entity
-from .frontend import async_save_manual_main_mac , async_clear_manual_main_mac
-
+from .frontend import async_save_manual_main_mac, async_clear_manual_main_mac
 
 
 class MiWifiServiceCall:
     """Parent class for all MiWifi service calls."""
 
-    schema = vol.Schema(
-        {
-            vol.Required(CONF_DEVICE_ID): vol.All(
-                vol.Coerce(list),
-                vol.Length(
-                    min=1, max=1, msg="The service only supports one device per call."
-                ),
-            )
-        }
-    )
+    schema = vol.Schema({
+        vol.Required(CONF_DEVICE_ID): vol.All(
+            vol.Coerce(list),
+            vol.Length(min=1, max=1, msg="The service only supports one device per call."),
+        )
+    })
 
     def __init__(self, hass: HomeAssistant) -> None:
-        """Initialize service call.
-
-        :param hass: HomeAssistant
-        """
-
         self.hass = hass
 
     def get_updater(self, service: ServiceCall) -> LuciUpdater:
-        """Get updater.
-
-        :param service: ServiceCall
-        :return LuciUpdater
-        """
-
         device_id: str = service.data[CONF_DEVICE_ID][0]
-
         device: dr.DeviceEntry | None = dr.async_get(self.hass).async_get(device_id)
-
         if device is None:
             raise vol.Invalid(f"Device {device_id} not found.")
 
@@ -74,16 +55,11 @@ class MiWifiServiceCall:
                 return async_get_updater(self.hass, identifier)
 
         raise vol.Invalid(
-            f"Device {device_id} does not support the called service. Choose a router with MiWifi support."  # pylint: disable=line-too-long
+            f"Device {device_id} does not support the called service. Choose a router with MiWifi support."
         )
 
     async def async_call_service(self, service: ServiceCall) -> None:
-        """Execute service call.
-
-        :param service: ServiceCall
-        """
-
-        raise NotImplementedError  # pragma: no cover
+        raise NotImplementedError
 
 
 class MiWifiCalcPasswdServiceCall(MiWifiServiceCall):
@@ -93,47 +69,27 @@ class MiWifiCalcPasswdServiceCall(MiWifiServiceCall):
     salt_new: str = "6d2df50a-250f-4a30-a5e6-d44fb0960aa0"
 
     async def async_call_service(self, service: ServiceCall) -> None:
-        """Execute service call.
+        updater: LuciUpdater = self.get_updater(service)
+        if hw_version := updater.data.get(ATTR_DEVICE_HW_VERSION):
+            _salt: str = hw_version + (self.salt_new if "/" in hw_version else self.salt_old)
+            return pn.async_create(self.hass, f"Your passwd: {hashlib.md5(_salt.encode()).hexdigest()[:8]}", NAME)
 
-        :param service: ServiceCall
-        """
-
-        _updater: LuciUpdater = self.get_updater(service)
-
-        if hw_version := _updater.data.get(ATTR_DEVICE_HW_VERSION):
-            _salt: str = hw_version + (
-                self.salt_new if "/" in hw_version else self.salt_old
-            )
-
-            return pn.async_create(
-                self.hass,
-                f"Your passwd: {hashlib.md5(_salt.encode()).hexdigest()[:8]}",
-                NAME,
-            )
-
-        raise vol.Invalid(
-            f"Integration with ip address: {_updater.ip} does not support this service."
-        )
+        raise vol.Invalid(f"Integration with ip address: {updater.ip} does not support this service.")
 
 
 class MiWifiRequestServiceCall(MiWifiServiceCall):
     """Send request."""
 
-    schema = MiWifiServiceCall.schema.extend(
-        {vol.Required(CONF_URI): str, vol.Optional(CONF_BODY): dict}
-    )
+    schema = MiWifiServiceCall.schema.extend({
+        vol.Required(CONF_URI): str,
+        vol.Optional(CONF_BODY): dict
+    })
 
     async def async_call_service(self, service: ServiceCall) -> None:
-        """Execute service call.
-
-        :param service: ServiceCall
-        """
-
         updater: LuciUpdater = self.get_updater(service)
         device_identifier: str = updater.data.get(ATTR_DEVICE_MAC_ADDRESS, updater.ip)
 
         _data: dict = dict(service.data)
-
         try:
             response: dict = await updater.luci.get(
                 uri := _data.get(CONF_URI), body := _data.get(CONF_BODY, {})  # type: ignore
@@ -141,36 +97,30 @@ class MiWifiRequestServiceCall(MiWifiServiceCall):
         except LuciError:
             return
 
-        device: dr.DeviceEntry | None = dr.async_get(self.hass).async_get_device(
-            set(),
-            {(dr.CONNECTION_NETWORK_MAC, device_identifier)},
-        )
-
+        device: dr.DeviceEntry | None = dr.async_get(self.hass).async_get_device(set(), {(dr.CONNECTION_NETWORK_MAC, device_identifier)})
         if device is not None:
-            self.hass.bus.async_fire(
-                EVENT_LUCI,
-                {
-                    CONF_DEVICE_ID: device.id,
-                    CONF_TYPE: EVENT_TYPE_RESPONSE,
-                    CONF_URI: uri,
-                    CONF_REQUEST: body,
-                    CONF_RESPONSE: response,
-                },
-            )
+            self.hass.bus.async_fire(EVENT_LUCI, {
+                CONF_DEVICE_ID: device.id,
+                CONF_TYPE: EVENT_TYPE_RESPONSE,
+                CONF_URI: uri,
+                CONF_REQUEST: body,
+                CONF_RESPONSE: response,
+            })
+
+
 class MiWifiGetTopologyGraphServiceCall(MiWifiServiceCall):
     """Get Topology Graph."""
 
     async def async_call_service(self, service: ServiceCall) -> None:
-        """Execute service call."""
         updater: LuciUpdater = self.get_updater(service)
-
         await updater._async_prepare_topo()
 
         if updater.data.get("topo_graph"):
-            _LOGGER.info("[MiWiFi] Topology graph retrieved successfully: %s", updater.data["topo_graph"])
+            _LOGGER.info("[MiWiFi] Topology graph retrieved successfully.")
         else:
             _LOGGER.warning("[MiWiFi] Topology graph could not be retrieved or is empty.")
-            
+
+
 class MiWifiLogPanelServiceCall:
     """Log messages sent from the frontend panel."""
 
@@ -195,9 +145,10 @@ class MiWifiLogPanelServiceCall:
         else:
             _LOGGER.info("[PanelJS] %s", message)
 
+
 from .updater import async_get_integrations
 
-class MiWifiSelectMainNodeServiceCall:
+class MiWifiSelectMainNodeServiceCall(MiWifiServiceCall):
     """Allow setting a router manually as main."""
 
     schema = vol.Schema({vol.Required("mac"): str})
@@ -212,8 +163,6 @@ class MiWifiSelectMainNodeServiceCall:
         integrations = async_get_integrations(self.hass)
         routers = [entry[UPDATER] for entry in integrations.values()]
 
-        _LOGGER.debug("[MiWiFi] Routers detectados: %d", len(routers))
-
         if selected_mac:
             await async_save_manual_main_mac(self.hass, selected_mac)
             _LOGGER.info("[MiWiFi] ✅ Manual MAC guardada correctamente: %s", selected_mac)
@@ -226,6 +175,25 @@ class MiWifiSelectMainNodeServiceCall:
             await async_update_panel_entity(self.hass, router)
 
 
+class MiWifiBlockDeviceServiceCall(MiWifiServiceCall):
+    """Block or unblock WAN access for a device."""
+
+    schema = MiWifiServiceCall.schema.extend({
+        vol.Required("mac"): str,
+        vol.Required("allow"): bool,
+    })
+
+    async def async_call_service(self, service: ServiceCall) -> None:
+        updater: LuciUpdater = self.get_updater(service)
+        mac = service.data["mac"]
+        allow = service.data["allow"]
+
+        if not updater.capabilities.get("mac_filter", False):
+            raise vol.Invalid("This router does not support MAC Filter API.")
+
+        await updater.luci.set_mac_filter(mac, allow)
+        _LOGGER.info(f"[MiWiFi] MAC Filter applied: mac={mac}, allow={allow}")
+
 
 SERVICES: Final = (
     (SERVICE_CALC_PASSWD, MiWifiCalcPasswdServiceCall),
@@ -233,6 +201,5 @@ SERVICES: Final = (
     ("get_topology_graph", MiWifiGetTopologyGraphServiceCall),
     ("log_panel", MiWifiLogPanelServiceCall),
     ("select_main_router", MiWifiSelectMainNodeServiceCall),
-
+    ("block_device", MiWifiBlockDeviceServiceCall),
 )
-

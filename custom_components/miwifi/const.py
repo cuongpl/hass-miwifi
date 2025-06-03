@@ -277,6 +277,11 @@ ATTR_TRACKER_UP_SPEED: Final = "up_speed"
 ATTR_TRACKER_LAST_ACTIVITY: Final = "last_activity"
 ATTR_TRACKER_OPTIONAL_MAC: Final = "optional_mac"
 ATTR_TRACKER_IS_RESTORED: Final = "is_restored"
+ATTR_TRACKER_TOTAL_USAGE: Final = "total_usage"
+ATTR_TRACKER_SIGNAL_QUALITY: Final = "signal_quality"
+ATTR_TRACKER_INTERNET_BLOCKED: Final = "internet_blocked"
+ATTR_TRACKER_FIRST_SEEN = "first_seen"
+
 
 """Update attributes"""
 ATTR_UPDATE_FIRMWARE: Final = "firmware"

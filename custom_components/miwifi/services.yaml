@@ -27,3 +27,26 @@ request:
         on: 1
       selector:
         object:
+
+block_device:
+  name: "Block Device"
+  description: "Block or unblock WAN access for a specific MAC address."
+  fields:
+    device_id:
+      name: Device
+      description: "The MiWiFi router to use."
+      required: true
+      selector:
+        device:
+          integration: miwifi
+    mac:
+      name: MAC Address
+      description: "MAC address to block/unblock."
+      required: true
+      example: "AA:BB:CC:DD:EE:FF"
+    allow:
+      name: Allow Internet Access
+      description: "Set to false to block access. True to allow access."
+      required: true
+      selector:
+        boolean:

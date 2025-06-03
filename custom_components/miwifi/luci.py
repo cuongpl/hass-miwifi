@@ -369,6 +369,38 @@ class LuciClient:
         """
 
         return await self.get("xqnetwork/wifi_connect_devices")
+    
+    async def set_mac_filter(self, mac: str, allow: bool) -> dict:
+            """xqsystem/set_mac_filter method.
+
+            Allows you to block or unblock internet access for a device.
+            allow=True -> WAN allowed (unblocked)
+            allow=False -> WAN blocked
+
+            :param mac: str: MAC address
+            :param allow: bool: Permission status
+            :return dict: dict with API data.
+            """
+            data = {"mac": mac, "wan": "1" if allow else "0"}
+            return await self.get("xqsystem/set_mac_filter", data)
+
+    async def macfilter_info(self) -> dict:
+            """xqnetwork/wifi_macfilter_info method.
+
+            Returns the current state of the filtered MAC list.
+
+            :return dict: dict with API data.
+            """
+            return await self.get("xqnetwork/wifi_macfilter_info")
+
+    async def check_mac_filter_support(self) -> bool:
+        """Check if the router supports set_mac_filter API."""
+        try:
+            await self.set_mac_filter("00:00:00:00:00:00", True)
+            return True
+        except Exception:
+            return False
+
 
     async def rom_update(self) -> dict:
         """xqsystem/check_rom_update method.

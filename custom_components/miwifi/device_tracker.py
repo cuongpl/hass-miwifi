@@ -10,6 +10,7 @@ from functools import cached_property
 from typing import Any, Final
 
 from homeassistant.components.device_tracker import ENTITY_ID_FORMAT
+from .helper import map_signal_quality
 
 SOURCE_TYPE_ROUTER = "router"
 
@@ -41,8 +42,12 @@ from .const import (
     ATTR_TRACKER_ROUTER_MAC_ADDRESS,
     ATTR_TRACKER_SCANNER,
     ATTR_TRACKER_SIGNAL,
+    ATTR_TRACKER_TOTAL_USAGE,
+    ATTR_TRACKER_SIGNAL_QUALITY,
+    ATTR_TRACKER_INTERNET_BLOCKED,
     ATTR_TRACKER_UP_SPEED,
     ATTR_TRACKER_UPDATER_ENTRY_ID,
+    ATTR_TRACKER_FIRST_SEEN,
     ATTRIBUTION,
     CONF_IS_TRACK_DEVICES,
     CONF_STAY_ONLINE,
@@ -73,6 +78,7 @@ ATTR_CHANGES: Final = (
     ATTR_TRACKER_DOWN_SPEED,
     ATTR_TRACKER_UP_SPEED,
     ATTR_TRACKER_OPTIONAL_MAC,
+    ATTR_TRACKER_INTERNET_BLOCKED
 )
 
 CONFIGURATION_PORTS: Final = [80, 443]
@@ -108,7 +114,7 @@ async def async_setup_entry(
         entity_id: str = generate_entity_id(
             ENTITY_ID_FORMAT, str(new_device.get(ATTR_TRACKER_MAC))
         )
-        
+
         mac = new_device.get(ATTR_TRACKER_MAC)
         if not mac:
             _LOGGER.warning("Device without MAC found: %s", new_device)
@@ -117,17 +123,15 @@ async def async_setup_entry(
         try:
             platform: EntityPlatform = async_get_current_platform()
         except RuntimeError as _e:  # pragma: no cover
-            #_LOGGER.debug("An error occurred while adding the device: %r", _e)
             return
 
-        if entity_id in platform.entities:  # pragma: no cover
-            #_LOGGER.debug("Device already added: %s", entity_id)
-            return
-        
         unique_id = f"{DOMAIN}-{config_entry.entry_id}-{mac}"
-        
-        if any(e.unique_id == unique_id for e in platform.entities.values()):
-            #_LOGGER.debug("Device already added by unique_id: %s", unique_id)
+
+        existing_entity = next((e for e in platform.entities.values() if e.unique_id == unique_id), None)
+
+        if existing_entity:
+            existing_entity._device = dict(new_device)
+            existing_entity.async_write_ha_state()
             return
 
         async_add_entities([
@@ -146,6 +150,7 @@ async def async_setup_entry(
     updater.new_device_callback = async_dispatcher_connect(
         hass, SIGNAL_NEW_DEVICE, add_device
     )
+
 
 
 class MiWifiDeviceTracker(ScannerEntity, CoordinatorEntity):
@@ -265,10 +270,7 @@ class MiWifiDeviceTracker(ScannerEntity, CoordinatorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return extra state attributes.
-
-        :return dict[str, Any]: Extra state attributes
-        """
+        """Return extra state attributes."""
 
         signal: Any = self._device.get(ATTR_TRACKER_SIGNAL, "")
         connection: Any = self._device.get(ATTR_TRACKER_CONNECTION, None)
@@ -279,31 +281,32 @@ class MiWifiDeviceTracker(ScannerEntity, CoordinatorEntity):
         if connection is not None and isinstance(connection, Connection):
             connection = connection.phrase  # type: ignore
 
+        signal_key = map_signal_quality(int(signal)) if signal not in ("", None) else "no_signal"
+
         return {
             ATTR_TRACKER_SCANNER: DOMAIN,
             ATTR_TRACKER_MAC: self.mac_address,
             ATTR_TRACKER_IP: self.ip_address,
             ATTR_TRACKER_ONLINE: self._device.get(ATTR_TRACKER_ONLINE, None)
-            if self.is_connected
-            else "",
+            if self.is_connected else "",
             ATTR_TRACKER_CONNECTION: connection,
-            ATTR_TRACKER_ROUTER_MAC_ADDRESS: self._device.get(
-                ATTR_TRACKER_ROUTER_MAC_ADDRESS, None
-            ),
+            ATTR_TRACKER_ROUTER_MAC_ADDRESS: self._device.get(ATTR_TRACKER_ROUTER_MAC_ADDRESS, None),
             ATTR_TRACKER_SIGNAL: signal,
             ATTR_TRACKER_DOWN_SPEED: pretty_size(
                 float(self._device.get(ATTR_TRACKER_DOWN_SPEED, 0.0))
-            )
-            if self.is_connected
-            else "",
+            ) if self.is_connected else "",
             ATTR_TRACKER_UP_SPEED: pretty_size(
                 float(self._device.get(ATTR_TRACKER_UP_SPEED, 0.0))
-            )
-            if self.is_connected
-            else "",
-            ATTR_TRACKER_LAST_ACTIVITY: self._device.get(
-                ATTR_TRACKER_LAST_ACTIVITY, None
+            ) if self.is_connected else "",
+            ATTR_TRACKER_LAST_ACTIVITY: self._device.get(ATTR_TRACKER_LAST_ACTIVITY, None),
+            ATTR_TRACKER_SIGNAL_QUALITY: signal_key,
+            ATTR_TRACKER_TOTAL_USAGE: (
+                f"{round(self._device.get(ATTR_TRACKER_TOTAL_USAGE, 0) / (1024 * 1024), 2)} MB"
+                if self.is_connected and self._device.get(ATTR_TRACKER_TOTAL_USAGE) else "0 MB"
             ),
+            ATTR_TRACKER_INTERNET_BLOCKED: self._device.get(ATTR_TRACKER_INTERNET_BLOCKED, False),
+            ATTR_TRACKER_FIRST_SEEN: self._device.get(ATTR_TRACKER_FIRST_SEEN, None),
+            
         }
 
     @property

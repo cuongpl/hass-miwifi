@@ -165,3 +165,16 @@ async def set_global_panel_state(hass: HomeAssistant, enabled: bool) -> None:
     _global_panel_state_cache = enabled
     store = Store(hass, 1, GLOBAL_PANEL_STORE)
     await store.async_save({"enabled": enabled})
+
+def map_signal_quality(signal: int) -> str:
+    """Map numeric signal to translation key."""
+    if signal >= -50:
+        return "very_strong"
+    elif signal >= -60:
+        return "strong"
+    elif signal >= -70:
+        return "fair"
+    elif signal >= -80:
+        return "weak"
+    else:
+        return "no_signal"
