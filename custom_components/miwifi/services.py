@@ -10,7 +10,9 @@ import homeassistant.components.persistent_notification as pn
 import voluptuous as vol
 from homeassistant.const import CONF_DEVICE_ID, CONF_IP_ADDRESS, CONF_TYPE
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import device_registry as dr
+
 
 from .const import (
     ATTR_DEVICE_HW_VERSION,
@@ -175,24 +177,80 @@ class MiWifiSelectMainNodeServiceCall(MiWifiServiceCall):
             await async_update_panel_entity(self.hass, router)
 
 
-class MiWifiBlockDeviceServiceCall(MiWifiServiceCall):
-    """Block or unblock WAN access for a device."""
+class MiWifiBlockDeviceServiceCall:
+    """Block or unblock WAN access for a device automatically."""
 
-    schema = MiWifiServiceCall.schema.extend({
-        vol.Required("mac"): str,
+    schema = vol.Schema({
+        vol.Required(CONF_DEVICE_ID): str,
         vol.Required("allow"): bool,
     })
 
-    async def async_call_service(self, service: ServiceCall) -> None:
-        updater: LuciUpdater = self.get_updater(service)
-        mac = service.data["mac"]
-        allow = service.data["allow"]
+    def __init__(self, hass: HomeAssistant) -> None:
+        self.hass = hass
 
-        if not updater.capabilities.get("mac_filter", False):
+    async def async_call_service(self, service: ServiceCall) -> None:
+        device_id: str = service.data[CONF_DEVICE_ID]
+
+        entity_registry = er.async_get(self.hass)
+        entities = [e for e in entity_registry.entities.values() if e.device_id == device_id and e.platform == "miwifi" and e.domain == "device_tracker"]
+
+        if not entities:
+            raise vol.Invalid("No MiWiFi device_tracker entity found for selected device.")
+
+        entity_entry = entities[0]
+        state = self.hass.states.get(entity_entry.entity_id)
+        if state is None:
+            raise vol.Invalid("Cannot get state of entity.")
+
+        mac_address = state.attributes.get("mac")
+        if not mac_address:
+            raise vol.Invalid("MAC not found in entity attributes.")
+
+        _LOGGER.debug(f"[MiWiFi] Target MAC: {mac_address}")
+
+        integrations = async_get_integrations(self.hass)
+        main_updater = None
+
+        for integration in integrations.values():
+            updater = integration[UPDATER]
+            topo_graph = (updater.data or {}).get("topo_graph", {}).get("graph", {})
+            if topo_graph.get("is_main", False):
+                main_updater = updater
+                break
+
+        if main_updater is None:
+            raise vol.Invalid("Main router not found (is_main).")
+
+        if not main_updater.capabilities.get("mac_filter", False):
             raise vol.Invalid("This router does not support MAC Filter API.")
 
-        await updater.luci.set_mac_filter(mac, allow)
-        _LOGGER.info(f"[MiWiFi] MAC Filter applied: mac={mac}, allow={allow}")
+        allow = service.data["allow"]
+
+        try:
+            await main_updater.luci.login()
+            await main_updater.luci.set_mac_filter(mac_address, not allow)
+            await main_updater._async_prepare_devices(main_updater.data)
+
+            _LOGGER.info(f"[MiWiFi] MAC Filter applied: mac={mac_address}, WAN={'Blocked' if allow else 'Allowed'}")
+        except LuciError as e:
+            if "Connection error" in str(e):
+                _LOGGER.info("[MiWiFi] Connection dropped after applying MAC filter (likely successfully applied): %s", e)
+
+            else:
+                _LOGGER.error("[MiWiFi] Error applying MAC filter: %s", e)
+                raise vol.Invalid(f"Failed to apply mac filter: {e}")
+        finally:
+            device_registry = dr.async_get(self.hass)
+            device_entry = device_registry.async_get(device_id)
+            friendly_name = device_entry.name_by_user or device_entry.name or mac_address
+
+            pn.async_create(
+                self.hass,
+                f"El dispositivo {friendly_name} ha sido {'BLOQUEADO' if allow else 'DESBLOQUEADO'} automáticamente.",
+                NAME,
+            )
+
+
 
 
 SERVICES: Final = (

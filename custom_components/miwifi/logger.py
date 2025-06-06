@@ -1,8 +1,10 @@
 import logging
 import os
 from logging.handlers import RotatingFileHandler
+from homeassistant.helpers import storage
 
-log_dir = "/config/custom_components/miwifi/Logs"
+# Carpeta de logs en /config/miwifi/logs
+log_dir = os.path.join(storage.STORAGE_DIR, '..', 'miwifi', 'logs')
 os.makedirs(log_dir, exist_ok=True)
 
 _LOGGER = logging.getLogger("miwifi")
@@ -23,7 +25,7 @@ add_level_handler(logging.INFO, "miwifi_info.log")
 add_level_handler(logging.WARNING, "miwifi_warning.log")
 add_level_handler(logging.ERROR, "miwifi_error.log")
 add_level_handler(logging.CRITICAL, "miwifi_critical.log")
-add_level_handler(logging.DEBUG, "miwifi_debug.log")  # se activa solo si el nivel global es DEBUG
+add_level_handler(logging.DEBUG, "miwifi_debug.log")  # Se activa si el nivel global es DEBUG
 
 __all__ = ["_LOGGER"]
 

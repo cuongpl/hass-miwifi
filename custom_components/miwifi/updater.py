@@ -1176,7 +1176,7 @@ class LuciUpdater(DataUpdateCoordinator):
             ATTR_TRACKER_UP_SPEED: float(ip_attr["upspeed"]) if ip_attr and "upspeed" in ip_attr else 0.0,
             ATTR_TRACKER_ONLINE: str(timedelta(seconds=int(ip_attr["online"] if ip_attr else 0))),
             ATTR_TRACKER_LAST_ACTIVITY: datetime.now().replace(microsecond=0).isoformat(),
-            ATTR_TRACKER_FIRST_SEEN: device.get(ATTR_TRACKER_FIRST_SEEN, datetime.now().replace(microsecond=0).isoformat()),
+            ATTR_TRACKER_FIRST_SEEN: self.devices.get(device[ATTR_TRACKER_MAC], {}).get(ATTR_TRACKER_FIRST_SEEN, datetime.now().replace(microsecond=0).isoformat()),
             ATTR_TRACKER_OPTIONAL_MAC: integrations[ip_attr["ip"]][UPDATER].data.get(ATTR_DEVICE_MAC_ADDRESS, None)
                 if integrations and ip_attr and ip_attr["ip"] in integrations else None,
             ATTR_TRACKER_INTERNET_BLOCKED: device.get(ATTR_TRACKER_INTERNET_BLOCKED, False),
