@@ -16,6 +16,7 @@ from .const import (
     PANEL_STORAGE_FILE,
     DEFAULT_PANEL_VERSION,
     MAIN_ROUTER_STORE_FILE,
+    PANEL_MONITOR_INTERVAL,
 )
 from .logger import _LOGGER
 
@@ -198,7 +199,24 @@ async def async_remove_miwifi_panel(hass: HomeAssistant) -> None:
         _LOGGER.info("[MiWiFi] Panel successfully removed.")
     except Exception as e:
         _LOGGER.debug(f"[MiWiFi] Error deleting panel: {e}")
+        
 
+async def async_start_panel_monitor(hass):
+    """Start periodic panel version monitoring."""
+
+    async def _check_panel_version(now):
+        try:
+            local = await read_local_version(hass)
+            async with aiohttp.ClientSession() as session:
+                remote = await read_remote_version(session)
+            if local != remote:
+                _LOGGER.warning(f"[MiWiFi] New panel version available: {remote} (local: {local})")
+            else:
+                _LOGGER.debug(f"[MiWiFi] Panel up-to-date: {local}")
+        except Exception as e:
+            _LOGGER.warning(f"[MiWiFi] Panel monitor error: {e}")
+
+    hass.helpers.event.async_track_time_interval(_check_panel_version, PANEL_MONITOR_INTERVAL)
 
 # ------- Persistence for Main Router Manual -------
 

@@ -65,9 +65,10 @@ PANEL_LOCAL_PATH = "www/miwifi"
 PANEL_STORAGE_FILE = ".storage/miwifi/miwifi_panel_version.json"
 PANEL_STATE_FILE = ".storage/miwifi/miwifi_panel_state.json"  
 
-# Main Router Manual Selection (persistence)
 MAIN_ROUTER_STORE_FILE = ".storage/miwifi/miwifi_main_router.json"
 MAIN_ROUTER_STORE_VERSION = 1
+
+PANEL_MONITOR_INTERVAL: Final = timedelta(seconds=30)
 
 
 """Default settings"""

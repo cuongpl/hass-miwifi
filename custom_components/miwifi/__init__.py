@@ -51,7 +51,8 @@ from .frontend import (
     async_download_panel_if_needed,
     async_register_panel,
     async_remove_miwifi_panel,
-    read_local_version
+    read_local_version,
+    async_start_panel_monitor
 )
 
 
@@ -106,6 +107,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if panel_enabled:
             local_version = await read_local_version(hass)
             await async_register_panel(hass, local_version)
+
+            # ⬇ Aquí colocamos el monitor
+            await async_start_panel_monitor(hass)
+
         else:
             await async_remove_miwifi_panel(hass)
     except Exception as e:
@@ -173,10 +178,14 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
         if panel_enabled:
             local_version = await read_local_version(hass)
             await async_register_panel(hass, local_version)
+
+            # ⬇ Aquí colocamos el monitor
+            await async_start_panel_monitor(hass)
+
         else:
             await async_remove_miwifi_panel(hass)
     except Exception as e:
-        _LOGGER.error(f"[MiWiFi] Error actualizando el panel: {e}")
+        _LOGGER.warning(f"[MiWiFi] Error gestionando el panel: {e}")
 
     await asyncio.gather(*[
         hass.config_entries.async_reload(e.entry_id)
