@@ -7,6 +7,7 @@ import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.components.frontend import async_register_built_in_panel, async_remove_panel
 from homeassistant.components.frontend import DATA_PANELS, Panel
+from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
     PANEL_REPO_VERSION_URL,
@@ -216,7 +217,8 @@ async def async_start_panel_monitor(hass):
         except Exception as e:
             _LOGGER.warning(f"[MiWiFi] Panel monitor error: {e}")
 
-    hass.helpers.event.async_track_time_interval(_check_panel_version, PANEL_MONITOR_INTERVAL)
+        async_track_time_interval(hass, _check_panel_version, PANEL_MONITOR_INTERVAL)
+
 
 # ------- Persistence for Main Router Manual -------
 
