@@ -232,6 +232,14 @@ class LuciClient:
         :return dict: dict with api data.
         """
         try:
+            _data: dict = await self.get("misystem/status")
+            if "mac" in _data["hardware"]:
+                if _data["hardware"]["mac"] == "D4:35:38:59:93:6B":
+                    _LOGGER.info("Force to set 'mode' of %s to '0'(default)", _data["hardware"]["mac"])
+                    return {"mode": 0}
+                if _data["hardware"]["mac"] in ["D4:35:38:59:95:E2", "4C:C6:4C:00:A1:A6"]:
+                    _LOGGER.info("Force to set 'mode' of %s to '9'(mesh)", _data["hardware"]["mac"])
+                    return {"mode": 9}
             return await self.get("xqnetwork/mode")
         except:
             _LOGGER.info("Primary endpoint failed load qnetwork/get_netmode")
